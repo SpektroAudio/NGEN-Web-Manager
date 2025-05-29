@@ -3,17 +3,11 @@ import { ref,watch, reactive } from 'vue'
 import Button from "primevue/button"
 import Tree from "primevue/tree"
 import Divider from 'primevue/divider';
-
-import Panel from 'primevue/panel';
-
 import SelectButton from 'primevue/selectbutton';
-
 import Dialog from 'primevue/dialog';
 import ScrollPanel from 'primevue/scrollpanel';
 import { useToast } from 'primevue/usetoast';
-
 import ProgressSpinner from 'primevue/progressspinner';
-
 import 'primeicons/primeicons.css'
 
 const toast = useToast();
