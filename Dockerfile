@@ -3,19 +3,17 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 
-RUN corepack enable
+# Copy package.json and your lockfile
+COPY package.json package-lock.json ./
 
-# Copy package.json and your lockfile, here we add pnpm-lock.yaml for illustration
-COPY package.json pnpm-lock.yaml .npmrc ./
-
-# Install dependencies
-RUN pnpm i
+# Install dependencies using npm
+RUN npm install
 
 # Copy the entire project
 COPY . ./
 
 # Build the project
-RUN pnpm run build
+RUN npm run build
 
 # Build Stage 2
 
@@ -26,7 +24,7 @@ WORKDIR /app
 COPY --from=build /app/.output/ ./
 
 # Change the port and host
-ENV PORT 80
+ENV PORT 3110
 ENV HOST 0.0.0.0
 
 EXPOSE 80
