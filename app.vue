@@ -2,14 +2,19 @@
 import { ref,watch, reactive } from 'vue'
 import Button from "primevue/button"
 import Tree from "primevue/tree"
-// import Card from "primevue/Card"
-import Splitter from 'primevue/splitter';
-import SplitterPanel from 'primevue/splitterpanel';
+import Divider from 'primevue/divider';
 
 import Panel from 'primevue/panel';
 
+import SelectButton from 'primevue/selectbutton';
+
+import Dialog from 'primevue/dialog';
 import ScrollPanel from 'primevue/scrollpanel';
 import { useToast } from 'primevue/usetoast';
+
+import ProgressSpinner from 'primevue/progressspinner';
+
+import 'primeicons/primeicons.css'
 
 const toast = useToast();
 
@@ -18,17 +23,31 @@ const toast = useToast();
 
 const isWebSerialSupported = typeof navigator !== 'undefined' && 'serial' in navigator;
 
+const minFirmwareVersion = 1.4;
+const appVersion = "0.1";
+const storageOptions = [
+                {name: 'Internal Memory', value: 0},
+                {name: 'microSD', value: 1},
+            ];
+
 const state = reactive({
   isConnected: false,
   receivedMessages: [] as string[],
   port: null as SerialPort | null,
-  files: [],
+  files: [] as string[],
+  firmwareVersion: "",
+  storageLocation: 0,
+  compatibleFirmware: true,
   busy: false,
-  receivingFile: false
+  receivingFile: false,
+  saveDialog: false,
+  deleteDialog: false,
+  infoSpinner: false,
+  memoryInfo: ""
 })
 
 const checked = ref([]); // Define the checked property
-
+const folderNames = ["[ / ] Projects", "[ /MIDI ] MIDI Files", "[ /DRUMGEN ] DrumGen Templates", "[ /NSL ] NSL Scripts"];
 const items = ref({}); // Items for the UTree
 
 
@@ -39,8 +58,20 @@ const connect = async () => {
     await state.port.open({ baudRate: 9600 });
     state.isConnected = true;
     readData();
-
-    requestFiles();
+    
+    await getVersion();
+    if (state.compatibleFirmware) {
+      await requestFiles();
+      await getValue('s').then(value => {
+        console.log(value);
+        state.storageLocation = parseInt(value);
+      });
+      console.log("Storage location: " + state.storageLocation)
+      
+      if (state.compatibleFirmware) {
+        await sendCommand('i');
+      }
+    }
   } catch (error) {
     console.error('Error connecting:', error)
     state.isConnected = false
@@ -49,13 +80,39 @@ const connect = async () => {
 
 // Disconnect from serial port
 const disconnect = async () => {
+  state.busy = true;
   state.isConnected = false;
+  // const reader = state.port.readable?.getReader();
+  // reader.releaseLock();
   setTimeout(function() {
     if (state.port) {
       state.port.close()
       state.port = null
     }
-  }, 1000);
+  }, 4000);
+}
+
+
+// Returns if any files are selected on the tree component
+const hasFileSelected = () => {
+  return Object.keys(checked.value).length > 0
+}
+
+// Returns if any files are selected on the tree component
+const selectedFiles = () => {
+  for (let key in checked.value) {
+    if (checked.value[key]["checked"] == true) {
+      var file_info = key.split("_");
+      var folder = parseInt(file_info[0]);
+      var file = parseInt(file_info[1]);
+    }
+  };
+}
+
+
+// Clears the buffer for received messages via serial
+const clearReceivedBuffer = () => {
+  state.receivedMessages = [] as string[];
 }
 
 // Read data from serial port
@@ -69,15 +126,17 @@ const readData = async () => {
         const { value, done } = await reader.read()
         if (done) break
         if (value) {
-          const text = decoder.decode(value)
-          state.receivedMessages.push(text)
-          console.log(text);
+          const text = decoder.decode(value);
+          state.receivedMessages.push(text);
+
+          // Finish file downloads
           if (state.receivingFile && text.includes("NGEN_FILE_TX_END")) {
             console.log("Saving file")
             state.receivingFile = false;
             saveFile();
+            clearReceivedBuffer();
           }
-
+          
         }
       }
     } catch (error) {
@@ -85,205 +144,214 @@ const readData = async () => {
       break
     }
   }
-  reader.releaseLock()
+  console.log("Releasing serial port lock");
+  await reader.releaseLock()
 }
 
-const uploadFile = () => {
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = '*.hex'; // Accept all file types
-    
-    fileInput.onchange = (event) => {
-      const file = event.target?.files?.[0];
-      if (file) {
-        file.arrayBuffer().then(content => {
-          const filename = file.name;
-          const filename_len = filename.length;
-          const file_size = content.byteLength;
-          const msg = [1, filename_len, ...Array.from(filename).map(c => c.charCodeAt(0)), ...new Uint8Array(new Uint32Array([file_size]).buffer), ...new Uint8Array(content), ...Array.from("--END--").map(c => c.charCodeAt(0))];
+const setStorageLocation = async (location: number) => {
+  await sendMessage('S\n' + state.storageLocation + '\n');
+  setTimeout(() => {
+    requestFiles();
+  }, 100);
+}
 
-          console.log("File size (bytes):", file_size);
-          console.log("Serial message length:", msg.length);
-
-          console.log(msg);
-          
-          sendMessage("T\n"); // Start the transmission
-          setTimeout(function() {
-            sendData(new Uint8Array(msg)); // Send the message
-            console.log("File sent");
-          }, 1000);
-
-        }).catch(error => {
-          console.error('Error:', error);
-        });
+const uploadFile = (file_mode: string) => {
+  console.log("Upload mode:", file_mode);
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = '*.hex'; // Accept all file types
+  
+  fileInput.onchange = (event) => {
+    const file = event.target?.files?.[0];
+    if (file) {
+      file.arrayBuffer().then((content: { byteLength: any; }) => {
         
+        state.saveDialog = false;
+        const filename = file.name;
+        const filename_len = filename.length;
+        const file_size = content.byteLength;
+        
+        console.log("File size (bytes):", file_size);
+        
+        const file_size_arr = new Uint8Array(new Uint32Array([file_size]).buffer);
+        const msg = [file_mode, filename_len, ...Array.from(filename).map(c => c.charCodeAt(0)), ...file_size_arr, ...new Uint8Array(content), ...Array.from("--END--").map(c => c.charCodeAt(0))];
+        
+        
+        console.log(msg);
+        
+        sendMessage("R\n"); // Start the transmission
+        setTimeout(function() {
+          sendData(new Uint8Array(msg)); // Send the message
+          console.log("File sent");
+          toast.add({
+            summary:"File uploaded to " + folderNames[file_mode-1] + ": " + filename,
+            life: 5000,
+            severity: "success"
+          });
+          
+        }, 1000);
 
-
-      }
-    };
-
-    fileInput.click(); // Open file picker
+        
+        
+      }).catch((error: string) => {
+        console.error('Error:', error);
+        toast.add({
+          summary:"Error: " + error,
+          life: 5000,
+          severity: "danger"
+        });
+      });
+      
+      
+      
+    }
   };
+  
+  fileInput.click(); // Open file picker
+};
 
-const loadTestMessages = () => {
-  state.receivedMessages = [
-    "FOLDER 0",
-    "FILES 29",
-    "0 - CYCLES1.HEX",
-    "1 - FILE_01.HEX",
-    "2 - FILE_02.HEX",
-    "3 - FILE_03.HEX",
-    "4 - FILE_04.HEX",
-    "5 - FILE_05.HEX",
-    "6 - FILE_06.HEX",
-    "7 - FILE_07.HEX",
-    "8 - FILE_08.HEX",
-    "9 - FILE_09.HEX",
-    "10 - FILE_10.HEX",
-    "11 - FILE_11.HEX",
-    "12 - FILE_12.HEX",
-    "13 - FILE_13.HEX",
-    "14 - FILE_14.HEX",
-    "15 - FILE_15.HEX",
-    "16 - FILE_16.HEX",
-    "17 - FILE_17.HEX",
-    "18 - FILE_18.HEX",
-    "19 - FILE_19.HEX",
-    "20 - FILE_20.HEX",
-    "21 - FILE_21.HEX",
-    "22 - FILE_22.HEX",
-    "23 - FILE_23.HEX",
-    "24 - FILE_24.HEX",
-    "25 - FILE_25.HEX",
-    "26 - FILE_26.HEX",
-    "27 - FILE_27.HEX",
-    "28 - FILE_28.HEX",
-    "FOLDER 1",
-    "FILES 1",
-    "0 - CHORDS.mid",
-    "FOLDER 2",
-    "FILES 11",
-    "0 - BOOMBAP.HEX",
-    "1 - BOSSA.HEX",
-    "2 - BREAKS.hex",
-    "3 - DNB.hex",
-    "4 - ELECTRO.hex",
-    "5 - FUNK_BR.hex",
-    "6 - GARAGE.HEX",
-    "7 - HOUSE.hex",
-    "8 - JUNGLE.HEX",
-    "9 - MEMPHIS.HEX",
-    "10 - TECHNO.hex",
-    "FOLDER 3",
-    "FILES 1",
-    "0 - EBASS.NSL"
-  ];
-}
+const getVersion = async () => {
+  console.log("Checking firmware version")
+  sendMessage('v\n');
+  await new Promise((resolve) => {
+  var timeout = setTimeout(function(){
+      state.firmwareVersion = state.receivedMessages.join("");
+      state.compatibleFirmware = parseFloat(state.firmwareVersion) >= minFirmwareVersion;
+      clearReceivedBuffer();
+      resolve();
+      // Finish async here
+    }, 1000)
+  });
+};
+
+const getValue = async (msg: string): Promise<any> => {
+  sendMessage(msg + '\n');
+  clearReceivedBuffer();
+  let value = await new Promise((resolve) => {
+    let timeout = setTimeout(function(){
+        let received_value = state.receivedMessages.join("");
+        console.log("Received: " + received_value);
+        clearReceivedBuffer();
+        resolve(received_value);
+        // Finish async here
+      }, 1000)
+  });
+  return value;
+};
+
 
 const requestFiles = async () => {
   toast.add({
     summary:"Requesting files from NGEN hardware..",
     life: 1000,
-    severity: "info"
+    severity: "secondary"
   });
   items.value = {};
   sendMessage('f\n');
-  var timeout = setTimeout(function(){
-
-    const input_msg = state.receivedMessages.join("").split("\r\n");
-    // loadTestMessages();
-    // const input_msg = state.receivedMessages;
-
-    const folderData = [];
-    let currentFolder = null;
-    
-    input_msg.forEach(line => {
-      if (line.startsWith("FOLDER")) {
-        if (currentFolder) {
-          folderData.push(currentFolder);
+  await new Promise((resolve) => {
+    var timeout = setTimeout(function(){
+      
+      const input_msg = state.receivedMessages.join("").split("\r\n");
+      clearReceivedBuffer();
+      
+      let folderData: any[] = [];
+      let currentFolder: { fileCount: any; files: any; folderNum?: number; } | null = null;
+      
+      let separator = state.compatibleFirmware ? ' ' : ' - ';
+      input_msg.forEach(line => {
+        if (line.startsWith("FOLDER")) {
+          if (currentFolder) {
+            folderData.push(currentFolder);
+          }
+          currentFolder = { 
+            folderNum: parseInt(line.split(separator)[1]), 
+            fileCount: 0, 
+            files: [] 
+          };
+        } else if (line.startsWith("FILES")) {
+          if (currentFolder) {
+            currentFolder.fileCount = parseInt(line.split(separator)[1]);
+          }
+        } else if (line.includes(" ")) {
+          if (currentFolder) {
+            const filename = line.split(separator)[1];
+            currentFolder.files.push(filename);
+          }
         }
-        currentFolder = { 
-          folderNum: parseInt(line.split(" ")[1]), 
-          fileCount: 0, 
-          files: [] 
-        };
-      } else if (line.startsWith("FILES")) {
-        if (currentFolder) {
-          currentFolder.fileCount = parseInt(line.split(" ")[1]);
-        }
-      } else if (line.includes(" ")) {
-        if (currentFolder) {
-          const filename = line.split(" ")[1];
-          currentFolder.files.push(filename);
-        }
+      });
+      
+      if (currentFolder) {
+        folderData.push(currentFolder); // Add the last folder
       }
-    });
-    
-    if (currentFolder) {
-      folderData.push(currentFolder); // Add the last folder
-    }
-    
-    console.log(folderData);
-    state.files = folderData;
-    state.receivedMessages = [];
-  }, 1000);
+      
+      console.log(folderData);
+      state.files = folderData;
+      state.receivedMessages = [];
+      resolve();
+    }, 1000);
+  });
 }
 
 
 
 // Function to transform folderData into PriveVue Tree compatible items
-const transformToTreeItems = (folderData) => {
-  const folderNames = ["[ / ] Projects", "[ /MIDI ] MIDI Files", "[ /DRUMGEN ] DrumGen Templates", "[ /NSL ] NSL Scripts"];
-
+const transformToTreeItems = (folderData: any[]) => {
   return folderData.map(folder => ({
     label: `${folderNames[folder.folderNum]}`,
     key: `${folder.folderNum}`,
     icon: "pi pi-folder",
-    children: folder.files.map((file, index) => ({
+    children: folder.files.map((file: string, index: string) => ({
       label: file, // Use an appropriate icon or remove if not needed
       key: folder.folderNum + "_" + index
     }))
   }));
+  
 };
 
 
 watch(() => state.files, (newFiles) => {
   items.value = transformToTreeItems(newFiles);
-  console.log("Items: " + items.value[0]);
 }, { immediate: true });
 
 
 // Send data to serial port
-const sendMessage = async (message) => {
+const sendMessage = async (message: string) => {
   if (!state.port) return
   state.busy = true;
   state.receivedMessages = [];
-
+  
   const writer = state.port.writable?.getWriter()
   if (writer) {
     const encoder = new TextEncoder()
     await writer.write(encoder.encode(message))
     writer.releaseLock()
   }
-
+  
   state.busy = false;
 }
 
-const sendData = async (data) => {
+const sendData = async (data: Uint8Array) => {
   if (!state.port) return
   state.busy = true;
-
+  
   const writer = state.port.writable?.getWriter()
   if (writer) {
-    await writer.write(data)
+    for (const value of data) {
+      await writer.write(new Uint8Array([value]))
+    }
     writer.releaseLock()
   }
-
+  
   state.busy = false;
 }
 
 // Send data to serial port
-const downloadFile = async (folder, file) => {
+const downloadFile = async (folder: string, file: string) => {
+  toast.add({
+    summary:"Downloading file...",
+    life: 5000,
+    severity: "info"
+  });
   const message = `F\n${folder}\n${file}\n`;
   state.receivingFile = true;
   sendMessage(message);
@@ -297,7 +365,7 @@ const downloadSelected = async () => {
       var file = file_info[1];
       console.log("Downloading file " + folder + " / " + file);
       await downloadFile(folder, file);
-
+      
       // Wait until file is received
       await new Promise(resolve => {
         const interval = setInterval(() => {
@@ -314,18 +382,54 @@ const downloadSelected = async () => {
   checked.value = [];
 }
 
+const deleteFile = async (folder: string, file: string) => {
+  const message = `d\n${folder}\n${file}\n`;
+  sendMessage(message);
+}
+
+const deleteSelected = async () => {
+  let count: number = 0;
+  state.deleteDialog = false;
+  for (let key in checked.value) {
+    if (checked.value[key]["checked"] == true) {
+      var file_info = key.split("_");
+      var folder = file_info[0];
+      var file = file_info[1];
+      count += 1;
+      console.log("Deleting file " + folder + " / " + file);
+      await deleteFile(folder, file);
+      
+    }
+  }
+  if (count > 0) {
+    checked.value = [];
+    console.log("Updating files");
+    await new Promise(resolve => {
+      setTimeout(() => {
+        toast.add({
+          summary:"Deleted " + count + " files",
+          life: 5000,
+          severity: "success"
+        });
+        requestFiles();
+      }, 1000);
+    });
+  }
+  // ;
+}
+
 
 const saveFile = async() => {
   // Clean received messages
   const input_msg = state.receivedMessages.join("").split("\r\n");
-
+  
   // Set up file info
   var file_size_expected = 0;
   var file_body = [];
   var body_content = false;
   var transfer_start = 0;
   var filename = "";
-
+  
   // Iterate through received messages
   for (var i = 0; i < input_msg.length; i++) {
     if (input_msg[i] === "NGEN_FILE_TX_START") {
@@ -341,7 +445,7 @@ const saveFile = async() => {
       file_body.push(parseInt(input_msg[i]));
     }
   }
-
+  
   if (file_size_expected == 0 || filename.length == 0) {
     toast.add({
       summary:"Error downloading file: " + filename,
@@ -350,12 +454,12 @@ const saveFile = async() => {
     });
     return
   }
-
+  
   // Set up file content
-  file_body = new Uint8Array(file_body);
+  let file_body_array: Uint8Array = new Uint8Array(file_body);
   console.log("Expected size: " + file_size_expected)
-  console.log(file_body)
-
+  console.log(file_body_array)
+  
   if (file_body.length != file_size_expected) {
     toast.add({
       summary:"Error saving file: " + filename + " (failed filesize check)",
@@ -364,17 +468,17 @@ const saveFile = async() => {
     });
     return
   }
-
-
+  
+  
   toast.add({
     summary:"Saving file: " + filename + " (" + file_size_expected + " bytes)",
     life: 1000,
-    severity: "info"
+    severity: "success"
   });
-
-
+  
+  
   // Download file
-  const blob = new Blob([file_body], { type: 'application/octet-stream' });
+  const blob = new Blob([file_body_array], { type: 'application/octet-stream' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = filename;
@@ -383,98 +487,187 @@ const saveFile = async() => {
   document.body.removeChild(link);
 }
 
+
+const sendCommand = async (cmd: string) => {
+  state.memoryInfo = "";
+  state.infoSpinner = true;
+  clearReceivedBuffer();
+  sendMessage(cmd + '\n');
+  await new Promise((resolve) => {
+    setTimeout(function(){
+      state.infoSpinner = false;
+      state.memoryInfo = state.receivedMessages.join("");
+      console.log("Memory info:", state.memoryInfo);
+      resolve();
+      
+    }, 1000)
+  });
+};
+
 </script>
+
 <template>
   <div class="flex flex-col space-y-8 items-center  justify-center mt-8">
     <Toast />
-
+    
     <div class="flex flex-col items-center justify-center w-full space-y-4">
-      <!-- <div class="border border-white rounded-lg w-3/4 p-3 space-y-2 flex flex-col items-center justify-evenly "> -->
-        <div class="text-3xl"> NGEN File Management</div>
-        <div class="font-light font-mono text-white/30"> 
-          This is a web-app for managing NGEN's memory.
+
+      <div class="flex space-x-4 items-center justify-evenly">
+        <div>
+          <a href="http://spektroaudio.com/ngen" target="_blank">
+          <img src="/img/NGENLogo.png" class="transition duration-150 ease-in-out w-[128px] hover:scale-110 opacity-30 hover:opacity-80">
+          </a>
         </div>
-
-          <div v-if="!isWebSerialSupported" class="flex items-center justify-center text-red-500 border border-red-500 rounded-lg w-3/4 ">
-            Web Serial API is not supported in your browser. Use Chromium-based browsers.
-          </div>
-          <!-- <p class="m-0"> -->
-            <div class="flex items-center justify-evenly space-x-8">
-              <Button
-                :label="state.isConnected ? 'Disconnect' : 'Connect to Serial Port'"
-                :class="state.isConnected ? 'p-button-danger' : 'p-button-success'"
-                @click="state.isConnected ? disconnect() : connect()"
-              />
-
-              <Button
-                label="Retrieve Files"
-                class="p-button-primary"
-                @click="requestFiles"
-              />
-            </div>
-          <!-- </p> -->
-    <!-- </div> -->
-  </div>
-
-    <!-- <Card> -->
-      <!-- <template #header>
-        <div class="h-8">
-          Files on NGEN
-        </div>
-      </template> -->
-
-    <!-- <div class="card"> -->
-
-      <div class="grid grid-cols-2 justify-center gap-4">
-        <div class="flex-auto">
-          <h2>Files on NGEN</h2>
-          
-          <Tree :value="items" v-model:selectionKeys="checked" selectionMode="checkbox" class="w-full md:w-[30rem]" />
-          <div class="grid grid-cols-4 gap-4">
-            <Button
-              label="Download Selected"
-              class="p-button-primary"
-              size="small"
-              :disabled="checked.length > 0"
-              @click="downloadSelected"
-            />
-
-            <Button
-              label="Upload File"
-              class="p-button-secondary"
-              size="small"
-              @click="uploadFile"
-            />
-          <!-- </div> -->
-
+        <div class="flex flex-col items-start justify-right">
+          <div class="text-3xl"> NGEN Web Manager <span class="text-xs text-white/60">v{{ appVersion }}</span></div>
+          <div class="font-light font-mono text-white/30 text-center space-y-4"> 
+            Web File Manager for  NGEN<br>
           </div>
         </div>
-        <div class="font-mono flex-auto">
-              <ScrollPanel  style="width: 100%; height: 200px">
-                    <!-- <p> -->
-                    <pre class="p-4 rounded-md min-h-[200px]">{{ state.receivedMessages.length }}</pre>
-                    <!-- </p> -->
-                    
-                </ScrollPanel>
-          </div>
-          
-          
-
       </div>
-        <!-- <Splitter style="height: 500px">
-            <SplitterPanel class="flex items-center justify-center" :size="25" :minSize="10">
-              <ScrollPanel style="width: 100%; height: 100%">
-                
-                {{ checked }}
-              </ScrollPanel>
-            </SplitterPanel>
-            <SplitterPanel class="flex items-center justify-center" :size="75">
-                <Panel header="Serial Output" style="width: 600px;">
-                      
-              </Panel>
+
+      <Divider class="w-3/4"/>
+      
+
+      <div class="text-[11px] font-mono font-light text-white/60 bg-white/5 py-2 px-4 rounded-xl">
+        REQUIRES NGEN FIRMWARE {{minFirmwareVersion}}+
+      </div>
+      <div v-if="!isWebSerialSupported" class="flex items-center justify-center py-2 text-red-500 border border-red-500 rounded-lg w-3/4 ">
+        Web Serial API is not supported in your browser. Use Chromium-based browsers.
+      </div>
+
+      
+      
+      <div class="flex space-x-4 justify-center items-center">
+      <span class="pi pi-angle-double-right opacity-20 animate-pulse " v-if="!state.isConnected" style="font-size: 24px"></span>
+      <Button
+      :label="state.isConnected ? 'Disconnect' : 'Connect to NGEN'"
+      :class="state.isConnected ? 'p-button-danger' : 'p-button-success'"
+      @click="state.isConnected ? disconnect() : connect()"
+      />
+      </div>
+    </div>
+    
+    <div class="grid grid-cols-2 justify-center gap-4 ]">
+      <div class="flex-auto border items-center justify-center border-white/10 rounded-md p-8 w-full space-y-4  h-[460px]">
+        <div class="flex items-center">
+          <h2 class="text-white/80">FILE MANAGER</h2>
+          <SelectButton v-if="state.isConnected && state.compatibleFirmware" v-model="state.storageLocation" class="ml-auto text-xs opacity-80" size="small" :options="storageOptions" optionValue="value" optionLabel="name" @value-change="setStorageLocation"/>
+        </div>
+        <div class="grid grid-cols-4 gap-4">
+          
+          
+          <Button
+          label="Refresh"
+          class="p-button-primary"
+          icon="pi pi-refresh"
+          size="small"
+          variant="outlined"
+          :disabled="!state.isConnected || !state.compatibleFirmware"
+          @click="requestFiles"
+          />
+          <Button
+          label="Download"
+          class="p-button-primary"
+          icon="pi pi-arrow-circle-down"
+          size="small"
+          :disabled="!hasFileSelected()"
+          @click="downloadSelected"
+          />
+
+          <Button
+          label="Delete"
+          class="p-button-danger"
+          icon="pi pi-trash"
+          size="small"
+          :disabled="!hasFileSelected()"
+          @click="state.deleteDialog = true"
+          />
+          
+          <Button
+          label="Upload"
+          class="p-button-primary"
+          icon="pi pi-upload"
+          size="small"
+          :disabled="!state.isConnected || !state.compatibleFirmware"
+          @click="state.saveDialog = true"
+          />
+        </div>
+        <ScrollPanel style="width: 100%; height: 300px">
+          <Tree  :filter="true" filterMode="lenient" :value="items" v-model:selectionKeys="checked" selectionMode="checkbox" class="w-full md:w-[30rem]" />
+        </ScrollPanel>
+      </div>
+      <div class="font-mono flex flex-col items-center space-y-4 space-x-4 bg-black/40 p-4 rounded-lg  h-[460px]">
+        <div class="text-center my-1" :class="state.compatibleFirmware ? 'text-green-400' : 'text-white/20'" v-if="state.firmwareVersion.length > 0">
+          Firmware Version: {{ state.firmwareVersion }}
+          <span class="pi pi-check-circle" v-if="state.compatibleFirmware"></span>
+        </div>
+        <div v-if="!state.compatibleFirmware" class="flex flex-col space-y-4 items-center text-center justify-center py-4 text-red-500 border border-red-500 rounded-lg w-full ">
+          <p>Incompatible Firmware Version<br> Please update NGEN to Firmware v{{ minFirmwareVersion }}</p>
+          <Button as="a"  href="https://ngen.spektroaudio.com/firmwareupdate/" icon="pi pi-link" target="_blank" class="text-xs px-6" label="Firmware Update - NGEN User Manual" size="small" severity="secondary" rounded  />
+        </div>
+        <div  v-show="state.compatibleFirmware && state.firmwareVersion.length > 0">
+          <div class="grid grid-cols-3 space-x-4">
+            <Button  class="text-xs px-6" label="Device Info" size="small" severity="secondary" rounded @click="sendCommand('i')"  />
+            <Button  class="text-xs px-6" label="Track Info" size="small" severity="secondary" rounded @click="sendCommand('t')"  />
+            <Button  class="text-xs px-6" label="Project Info" size="small" severity="secondary" rounded @click="sendCommand('P')"  />
+          </div>
+          <ScrollPanel  class="w-full h-[400px]">
+            <!-- <p> -->
               
-            </SplitterPanel>
-        </Splitter> -->
-    <!-- </div> -->
+              <div class="flex justify-center mt-8 "  v-show="state.infoSpinner">
+                <ProgressSpinner style="width: 50px; height: 50px" strokeWidth="8" fill="transparent"
+                animationDuration=".5s"  />
+              </div>
+              
+              <pre class="p-4 rounded-md min-h-[200px] text-white/60 font-mono text-sm">{{ state.memoryInfo }}</pre>
+            <!-- </p> -->
+            
+          </ScrollPanel>
+        </div>
+      </div>
+      
+      
+      
+    </div>
+    <div class="flex justify-center items-center space-x-8">
+      <Button as="a"  href="https://spektroaudio.com/ngen" icon="pi pi-link" target="_blank" class="text-xs px-6" label="NGEN WEBPAGE" size="small" severity="secondary" rounded  />
+      <Button as="a"  href="https://ngen.spektroaudio.com" icon="pi pi-book" target="_blank" class="text-xs px-6" label="NGEN USER MANUAL" size="small" severity="secondary" rounded  />
+      <Button as="a"  href="https://spektroaudio.com" icon="pi pi-globe" target="_blank" class="text-xs px-6" label="SPEKTROAUDIO.COM" size="small" severity="secondary" rounded  />
+      <Button as="a"  href="https://spektroaudio.com" icon="pi pi-github" target="_blank" class="text-xs px-6 rounded-xl" label="REPOSITORY"  size="small" severity="secondary"   />
+
+    </div>
   </div>
+  
+  <Dialog v-model:visible="state.saveDialog" modal header="Upload File" class="w-80">
+    <div class="text-center text-surface-500 text-white/50 font-mono font-thin text-sm dark:text-surface-400 block mb-8">Select File Type to Upload</div>
+    
+    <div class="grid grid-cols-1 gap-2">
+      <Button type="button" label="Project" @click="uploadFile(1)"></Button>
+      <Button type="button" variant="outlined" label="MIDI File" @click="uploadFile(2)"></Button>
+      <Button type="button" variant="outlined" label="DrumGen Template" @click="uploadFile(3)"></Button>
+      <Button type="button" variant="outlined" label="NSL Script" @click="uploadFile(4)"></Button>
+    </div>
+  </Dialog>
+
+
+  <Dialog v-model:visible="state.deleteDialog" modal header="Delete Files?" class="w-80">
+    <div class="text-center text-surface-500 text-white/50 font-mono font-thin text-sm dark:text-surface-400 block mb-8">
+      {{ checked }}
+    </div>
+    
+    <div class="flex items-center justify-center gap-2">
+      <Button type="button" variant="outlined" class="p-button-secondary" label="Cancel" @click="state.deleteDialog=false;"></Button>
+
+      <Button type="button" label="Delete" class="p-button-danger" @click="deleteSelected"></Button>
+    </div>
+  </Dialog>
 </template>
+
+
+<style>
+@keyframes moveMask {
+  0%   { mask-position: 0% 0%; }
+  100% { mask-position: 100% 0%; }
+}
+</style>
