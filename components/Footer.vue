@@ -9,8 +9,37 @@
     </div>
 
     <div class="text-[9px] font-mono opacity-20">
-        VERSION 1.4 - 03.07.2025
+        VERSION {{version}} - {{lastCommitDate}}
     </div>
 
   <!-- <Button type="button" label="Print" class="p-button-danger" @click="console.log(projectData)"></Button> -->
 </template>
+<script>
+export default {
+    props: {
+        version: {
+            type: Number,
+            required: true
+        }
+    },
+    data() {
+        return {
+            lastCommitDate: '', // Initialize the lastCommitDate property
+        };
+    },
+    mounted() {
+        this.fetchLastCommitDate();
+    },
+    methods: {
+        async fetchLastCommitDate() {
+            try {
+                const response = await fetch('https://api.github.com/repos/SpektroAudio/DrumGenTemplateEditor/releases?per_page=1');
+                const data = await response.json();
+                this.lastCommitDate = new Date(data[0].published_at).toLocaleString(); // Format the date
+            } catch (error) {
+                console.error('Error fetching last commit date:', error);
+            }
+        },
+    }
+}
+</script>

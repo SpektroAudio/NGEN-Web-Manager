@@ -411,7 +411,7 @@ const downloadFile = async (folder: string, file: string) => {
 
 const downloadSelected = async () => {
   for (let key in checked.value) {
-    if (checked.value[key]["checked"] == true) {
+    if (checked.value[key]["checked"] == true && key.includes("_")) {
       var file_info = key.split("_");
       var folder = file_info[0];
       var file = file_info[1];
@@ -570,7 +570,7 @@ const sendCommand = async (cmd: string) => {
     <div class="flex flex-col items-center w-full space-y-6">
       
       <div class="flex flex-row items-end justify-between w-3/4">
-        <Header :version="minFirmwareVersion" ngen_logo="/img/NGENLogo.png"/>
+        <Header :version="appVersion" ngen_logo="/img/NGENLogo.png"/>
         <RequiredVersion :version="minFirmwareVersion"/>
       </div>
       
@@ -585,22 +585,27 @@ const sendCommand = async (cmd: string) => {
       </div>
       
       
-      
-      <div class="flex space-x-4 justify-center items-center">
-        <span class="pi pi-angle-double-right opacity-20 animate-pulse " v-if="!state.isConnected" style="font-size: 24px"></span>
-        <Button
-        :label="state.isConnected ? 'Disconnect' : 'Connect to NGEN'"
-        :class="state.isConnected ? 'p-button-danger' : 'p-button-success'"
-        @click="state.isConnected ? disconnect() : connect()"
-        />
+      <div class="flex flex-row justify-between items-center w-3/4 py-2 bg-black/10 px-6 py-4 rounded-l border border-white/10">
+        <SelectButton v-model="state.view"  class="opacity-80" size="large" :options="availableViews" optionLabel="name" optionValue="value" :allowEmpty="false"/>
+
+        <div class="flex space-x-4 justify-center items-center">
+          <span class="pi pi-angle-double-right opacity-20 animate-pulse " v-if="!state.isConnected" style="font-size: 24px"></span>
+          <Button
+          :label="state.isConnected ? 'Disconnect' : 'Connect to NGEN'"
+          :class="state.isConnected ? 'p-button-danger' : 'p-button-success'"
+          @click="state.isConnected ? disconnect() : connect()"
+          />
+        </div>
       </div>
+
     </div>
+      
+    <!-- </div> -->
+   
     
-    
-    <SelectButton v-model="state.view"  class="text-xs opacity-80" size="large" :options="availableViews" optionLabel="name" optionValue="value" :allowEmpty="false"/>
-    
-    <div class="grid grid-cols-2 justify-center gap-4" :class="state.isConnected ? 'blur-none' : 'blur-[4px] opacity-20'">
-      <div class="flex-auto border items-center justify-center border-white/10 rounded-md p-8 w-full space-y-4  h-[460px]" v-if="state.view == 0">
+    <div class="grid grid-cols-2 justify-center gap-4" :class="state.isConnected ? 'blur-none' : 'blur-[4px] opacity-20'" v-if="state.view == 0">
+
+      <div class="flex-auto border items-center justify-center border-white/10 rounded-md p-8 w-full space-y-4  h-[460px]" >
         <div class="flex items-center">
           <h2 class="text-white/80">FILE MANAGER</h2>
           <SelectButton v-if="state.isConnected && state.compatibleFirmware && state.storageLocation < 2" :disabled="state.waiting" v-model="state.storageLocation" class="ml-auto text-xs opacity-80" size="small" :options="storageOptions" optionValue="value" optionLabel="name" @value-change="setStorageLocation" :allowEmpty="false"/>
@@ -649,9 +654,10 @@ const sendCommand = async (cmd: string) => {
         </ScrollPanel>
       </div>
       
-      <div class="font-mono flex flex-col w-full items-center space-y-4 space-x-4 bg-black/40 p-4 rounded-lg  h-[460px]" v-if="state.view == 0">
+      
+      <div class="font-mono flex flex-col w-full items-center space-y-4 space-x-4 bg-black/40 p-4 rounded-lg  h-[460px]">
         <div class="text-center my-1" :class="state.compatibleFirmware ? 'text-green-400' : 'text-white/20'" v-if="state.firmwareVersion.length > 0">
-          Firmware Version: {{ state.firmwareVersion }}
+          Device Firmware Version: {{ state.firmwareVersion }}
           <span class="pi pi-check-circle" v-if="state.compatibleFirmware"></span>
         </div>
         <div v-if="!state.compatibleFirmware" class="flex flex-col space-y-4 items-center text-center justify-center py-4 text-red-500 border border-red-500 rounded-lg w-full ">
@@ -683,8 +689,9 @@ const sendCommand = async (cmd: string) => {
     
     <Projects @projectData="updateProjectData" @send="sendProject" v-if="state.view == 1"/>
     
+    <!-- <div>{{ checked }}</div> -->
     
-    <Footer/>
+    <Footer :version="appVersion"/>
   </div>
   
   <Dialog v-model:visible="state.saveDialog" modal header="Upload File" class="w-80">
