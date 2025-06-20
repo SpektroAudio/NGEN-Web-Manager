@@ -46,7 +46,7 @@ jobs:
         context: .
         platforms: linux/amd64
         push: true
-        tags: ${{ steps.meta.outputs.tags }}
+        tags: ghcr.io/spektroaudio/ngen-web-manager:latest
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
