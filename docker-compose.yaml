@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  nuxt-app:
+    image: ghcr.io/SpektroAudio/NGEN-Web-Manager:latest
+    container_name: nuxt-app
+    ports:
+      - "3110:3110"
+    environment:
+      - PORT=3110
+      - HOST=0.0.0.0
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - nuxt-network
+
+networks:
+  nuxt-network:
+    driver: bridge
