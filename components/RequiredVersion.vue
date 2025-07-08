@@ -8,8 +8,8 @@
 export default {
     props: {
         version: {
-            type: Number, // You can change the type based on your needs
-            required: true // Make it required if you want to enforce passing this prop
+            type: Number, 
+            required: true
         }
     }
 }

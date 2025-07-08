@@ -13,17 +13,14 @@ import 'primeicons/primeicons.css'
 const toast = useToast();
 
 
-// Check if Web Serial API is available
 
 const isWebSerialSupported = typeof navigator !== 'undefined' && 'serial' in navigator;
-
 const minFirmwareVersion = 1.4;
 const appVersion = "0.1";
 const storageOptions = [
 {name: 'Internal Memory', value: 0},
 {name: 'microSD', value: 1},
 ];
-
 const availableViews = [
 {name: "Browser", value: 0},
 {name: "Example Projects", value: 1}
@@ -57,7 +54,7 @@ const folderNames = ["Projects", "MIDI Files", "DrumGen Templates", "NSL Scripts
 const items = ref({}); // Items for the UTree
 
 
-// Connect to serial port
+// Connect to serial port via web serial
 const connect = async () => {
   try {
     state.port = await navigator.serial.requestPort()
@@ -69,7 +66,7 @@ const connect = async () => {
     if (state.compatibleFirmware) {
       await requestFiles();
       await getValue('s').then(value => {
-        console.log(value);
+        // console.log(value);
         state.storageLocation = parseInt(value);
       });
       console.log("Storage location: " + state.storageLocation)
@@ -104,15 +101,26 @@ const hasFileSelected = () => {
   return Object.keys(checked.value).length > 0
 }
 
-// Returns if any files are selected on the tree component
+// Returns a dictionary containing the folder name and files selected
 const selectedFiles = () => {
+  var files = {}
+  // console.log(items.value);
   for (let key in checked.value) {
-    if (checked.value[key]["checked"] == true) {
+    if (checked.value[key]["checked"] == true && key.includes('_')) {
       var file_info = key.split("_");
       var folder = parseInt(file_info[0]);
       var file = parseInt(file_info[1]);
+      // console.log("Folder: ", folder, "/ File: ", file);
+      var foldername = items.value[folder]['label'].replace(/\(\d+\)/g, '');
+      var filename = items.value[folder]['children'][file]['label'];
+      if (foldername in files) {
+        files[foldername].push(filename)
+      } else {
+        files[foldername] = [filename]
+      }
     }
   };
+  return files
 }
 
 
@@ -135,7 +143,7 @@ const readData = async () => {
           const text = decoder.decode(value);
           state.receivedMessages.push(text);
           
-          console.log(text);
+          // console.log(text);
           
           // Finish file downloads
           if (state.receivingFile && text.includes("TX_END")) {
@@ -156,6 +164,7 @@ const readData = async () => {
   await reader.releaseLock()
 }
 
+// Change NGEN's storage location
 const setStorageLocation = async (location: number) => {
   checked.value = [];
   await sendMessage('S\n' + state.storageLocation + '\n');
@@ -164,6 +173,8 @@ const setStorageLocation = async (location: number) => {
   }, 100);
 }
 
+
+// Upload file to NGEN via serial
 const uploadFile = (file_mode: number) => {
   console.log("Upload mode:", file_mode);
   const fileInput = document.createElement('input');
@@ -173,21 +184,24 @@ const uploadFile = (file_mode: number) => {
   fileInput.onchange = (event) => {
     const file = event.target?.files?.[0];
     if (file) {
+      
+      // Convert file to a u8 buffer array
       file.arrayBuffer().then((content: { byteLength: any; }) => {
         
+        // Retrieve file info
         state.saveDialog = false;
         const filename = file.name;
         const filename_len = filename.length;
         const file_size = content.byteLength;
-        
         console.log("File size (bytes):", file_size);
-        
         const file_size_arr = new Uint8Array(new Uint32Array([file_size]).buffer);
+        
+        // Create serial message
         const msg = [file_mode, filename_len, ...Array.from(filename).map(c => c.charCodeAt(0)), ...file_size_arr, ...new Uint8Array(content), ...Array.from("--END--").map(c => c.charCodeAt(0))];
         
+        // console.log(msg);
         
-        console.log(msg);
-        
+        // Send serial message
         sendMessage("R\n"); // Start the transmission
         setTimeout(function() {
           sendData(new Uint8Array(msg)); // Send the message
@@ -210,9 +224,6 @@ const uploadFile = (file_mode: number) => {
           severity: "danger"
         });
       });
-      
-      
-      
     }
   };
   
@@ -220,6 +231,7 @@ const uploadFile = (file_mode: number) => {
 };
 
 
+// Send an example project to NGEN via serial (loads directly into memory)
 const sendProject = () => {
   
   if (!state.isConnected) {
@@ -239,8 +251,7 @@ const sendProject = () => {
     const file_size_arr = new Uint8Array(new Uint32Array([file_size]).buffer);
     const msg = [5, filename_len, ...Array.from(filename).map(c => c.charCodeAt(0)), ...file_size_arr, ...new Uint8Array(state.projectData['data']), ...Array.from("--END--").map(c => c.charCodeAt(0))];
     
-    
-    console.log(msg);
+    // console.log(msg);
     
     sendMessage("R\n"); // Start the transmission
     setTimeout(function() {
@@ -259,7 +270,7 @@ const sendProject = () => {
   
 };
 
-
+// Request NGEN firmware version
 const getVersion = async () => {
   console.log("Checking firmware version")
   sendMessage('v\n');
@@ -269,10 +280,10 @@ const getVersion = async () => {
       state.compatibleFirmware = parseFloat(state.firmwareVersion) >= minFirmwareVersion;
       clearReceivedBuffer();
       resolve();
-      // Finish async here
     }, 1000)
   });
 };
+
 
 const getValue = async (msg: string): Promise<any> => {
   sendMessage(msg + '\n');
@@ -289,7 +300,7 @@ const getValue = async (msg: string): Promise<any> => {
   return value;
 };
 
-
+// Request file list
 const requestFiles = async () => {
   toast.add({
     summary:"Requesting files from NGEN hardware..",
@@ -335,7 +346,7 @@ const requestFiles = async () => {
         folderData.push(currentFolder); // Add the last folder
       }
       
-      console.log(folderData);
+      // console.log(folderData);
       state.files = folderData;
       state.receivedMessages = [];
       resolve();
@@ -366,7 +377,7 @@ watch(() => state.files, (newFiles) => {
 }, { immediate: true });
 
 
-// Send data to serial port
+// Send message via serial port
 const sendMessage = async (message: string) => {
   if (!state.port) return
   state.busy = true;
@@ -382,6 +393,7 @@ const sendMessage = async (message: string) => {
   state.busy = false;
 }
 
+// Send data (U8 array) to serial port
 const sendData = async (data: Uint8Array) => {
   if (!state.port) return
   state.busy = true;
@@ -397,7 +409,7 @@ const sendData = async (data: Uint8Array) => {
   state.busy = false;
 }
 
-// Send data to serial port
+// Request file content
 const downloadFile = async (folder: string, file: string) => {
   // toast.add({
   //   summary:"Downloading file...",
@@ -409,6 +421,8 @@ const downloadFile = async (folder: string, file: string) => {
   sendMessage(message);
 }
 
+
+// Iterate through the selected files and download each item individually
 const downloadSelected = async () => {
   for (let key in checked.value) {
     if (checked.value[key]["checked"] == true && key.includes("_")) {
@@ -434,6 +448,7 @@ const downloadSelected = async () => {
   checked.value = [];
 }
 
+// Send delete file request to NGEN
 const deleteFile = async (folder: string, file: string) => {
   const message = `d\n${folder}\n${file}\n`;
   sendMessage(message);
@@ -444,6 +459,7 @@ const updateProjectData = async (data: any) => {
   // console.log(state.projectData["name"]);
 }
 
+// Iterate through the selected files and delete items individually
 const deleteSelected = async () => {
   let count: number = 0;
   state.deleteDialog = false;
@@ -475,7 +491,7 @@ const deleteSelected = async () => {
   // ;
 }
 
-
+// Parse received U8 arrays and download received files (as U8 arrays) 
 const saveFile = async() => {
   // Clean received messages
   const input_msg = state.receivedMessages.join("").split("\r\n");
@@ -515,7 +531,7 @@ const saveFile = async() => {
   // Set up file content
   let file_body_array: Uint8Array = new Uint8Array(file_body);
   console.log("Expected size: " + file_size_expected)
-  console.log(file_body_array)
+  // console.log(file_body_array)
   
   if (file_body.length != file_size_expected) {
     toast.add({
@@ -544,7 +560,7 @@ const saveFile = async() => {
   document.body.removeChild(link);
 }
 
-
+// Send command to serial
 const sendCommand = async (cmd: string) => {
   state.memoryInfo = "";
   state.infoSpinner = true;
@@ -587,7 +603,6 @@ const sendCommand = async (cmd: string) => {
       
       <div class="flex flex-row justify-between items-center w-3/4 py-2 bg-black/10 px-6 py-4 rounded-l border border-white/10">
         <SelectButton v-model="state.view"  class="opacity-80" size="large" :options="availableViews" optionLabel="name" optionValue="value" :allowEmpty="false"/>
-
         <div class="flex space-x-4 justify-center items-center">
           <span class="pi pi-angle-double-right opacity-20 animate-pulse " v-if="!state.isConnected" style="font-size: 24px"></span>
           <Button
@@ -597,135 +612,140 @@ const sendCommand = async (cmd: string) => {
           />
         </div>
       </div>
-
     </div>
-      
-    <!-- </div> -->
-   
     
-    <div class="grid grid-cols-2 justify-center gap-4" :class="state.isConnected ? 'blur-none' : 'blur-[4px] opacity-20'" v-if="state.view == 0">
-
-      <div class="flex-auto border items-center justify-center border-white/10 rounded-md p-8 w-full space-y-4  h-[460px]" >
-        <div class="flex items-center">
-          <h2 class="text-white/80">FILE MANAGER</h2>
-          <SelectButton v-if="state.isConnected && state.compatibleFirmware && state.storageLocation < 2" :disabled="state.waiting" v-model="state.storageLocation" class="ml-auto text-xs opacity-80" size="small" :options="storageOptions" optionValue="value" optionLabel="name" @value-change="setStorageLocation" :allowEmpty="false"/>
+  
+  
+  <div class="grid grid-cols-2 justify-center gap-4" :class="state.isConnected ? 'blur-none' : 'blur-[4px] opacity-20'" v-if="state.view == 0">
+    
+    <div class="flex-auto border items-center justify-center border-white/10 rounded-md p-8 w-full space-y-4  h-[460px]" >
+      <div class="flex items-center">
+        <h2 class="text-white/80">FILE MANAGER</h2>
+        <SelectButton v-if="state.isConnected && state.compatibleFirmware && state.storageLocation < 2" :disabled="state.waiting" v-model="state.storageLocation" class="ml-auto text-xs opacity-80" size="small" :options="storageOptions" optionValue="value" optionLabel="name" @value-change="setStorageLocation" :allowEmpty="false"/>
+      </div>
+      <div class="grid grid-cols-4 gap-4">
+        
+        
+        <Button
+        label="Refresh"
+        class="p-button-primary"
+        icon="pi pi-refresh"
+        size="small"
+        variant="outlined"
+        :disabled="!state.isConnected || !state.compatibleFirmware"
+        @click="requestFiles"
+        />
+        <Button
+        label="Download"
+        class="p-button-primary"
+        icon="pi pi-arrow-circle-down"
+        size="small"
+        :disabled="!hasFileSelected()"
+        @click="downloadSelected"
+        />
+        
+        <Button
+        label="Delete"
+        class="p-button-danger"
+        icon="pi pi-trash"
+        size="small"
+        :disabled="!hasFileSelected()"
+        @click="state.deleteDialog = true"
+        />
+        
+        <Button
+        label="Upload"
+        class="p-button-primary"
+        icon="pi pi-upload"
+        size="small"
+        :disabled="!state.isConnected || !state.compatibleFirmware"
+        @click="state.saveDialog = true"
+        />
+      </div>
+      <ScrollPanel style="width: 100%; height: 300px">
+        <Tree :loading="state.waiting" :filter="true" filterMode="lenient" :value="items" v-model:selectionKeys="checked" selectionMode="checkbox" class="w-full md:w-[30rem] rounded-l bg-transparent" />
+      </ScrollPanel>
+    </div>
+    
+    
+    <div class="font-mono flex flex-col w-full items-center space-y-4 space-x-4 bg-black/40 p-4 rounded-lg  h-[460px]">
+      <div class="text-center my-1" :class="state.compatibleFirmware ? 'text-green-400' : 'text-white/20'" v-if="state.firmwareVersion.length > 0">
+        Device Firmware Version: {{ state.firmwareVersion }}
+        <span class="pi pi-check-circle" v-if="state.compatibleFirmware"></span>
+      </div>
+      <div v-if="!state.compatibleFirmware" class="flex flex-col space-y-4 items-center text-center justify-center py-4 text-red-500 border border-red-500 rounded-lg w-full ">
+        <p>Incompatible Firmware Version<br> Please update NGEN to Firmware v{{ minFirmwareVersion }}</p>
+        <Button as="a"  href="https://ngen.spektroaudio.com/firmwareupdate/" icon="pi pi-link" target="_blank" class="text-xs px-6" label="Firmware Update - NGEN User Manual" size="small" severity="secondary" rounded  />
+      </div>
+      <div  v-show="state.compatibleFirmware && state.firmwareVersion.length > 0">
+        <div class="grid grid-cols-3 space-x-4">
+          <Button  class="text-xs px-6" label="Device Info" size="small" severity="secondary" rounded @click="sendCommand('i')"  />
+          <Button  class="text-xs px-6" label="Track Info" size="small" severity="secondary" rounded @click="sendCommand('t')"  />
+          <Button  class="text-xs px-6" label="Project Info" size="small" severity="secondary" rounded @click="sendCommand('P')"  />
         </div>
-        <div class="grid grid-cols-4 gap-4">
+        <ScrollPanel  class="w-full h-[400px]">
+          <!-- <p> -->
+            
+            <div class="flex justify-center mt-8 "  v-show="state.infoSpinner">
+              <ProgressSpinner style="width: 50px; height: 50px" strokeWidth="8" fill="transparent"
+              animationDuration=".5s"  />
+            </div>
+            
+            <pre class="p-4 rounded-md min-h-[200px] text-white/60 font-mono text-sm">{{ state.memoryInfo }}</pre>
+          <!-- </p> -->
           
-          
-          <Button
-          label="Refresh"
-          class="p-button-primary"
-          icon="pi pi-refresh"
-          size="small"
-          variant="outlined"
-          :disabled="!state.isConnected || !state.compatibleFirmware"
-          @click="requestFiles"
-          />
-          <Button
-          label="Download"
-          class="p-button-primary"
-          icon="pi pi-arrow-circle-down"
-          size="small"
-          :disabled="!hasFileSelected()"
-          @click="downloadSelected"
-          />
-          
-          <Button
-          label="Delete"
-          class="p-button-danger"
-          icon="pi pi-trash"
-          size="small"
-          :disabled="!hasFileSelected()"
-          @click="state.deleteDialog = true"
-          />
-          
-          <Button
-          label="Upload"
-          class="p-button-primary"
-          icon="pi pi-upload"
-          size="small"
-          :disabled="!state.isConnected || !state.compatibleFirmware"
-          @click="state.saveDialog = true"
-          />
-        </div>
-        <ScrollPanel style="width: 100%; height: 300px">
-          <Tree :loading="state.waiting" :filter="true" filterMode="lenient" :value="items" v-model:selectionKeys="checked" selectionMode="checkbox" class="w-full md:w-[30rem] rounded-l bg-transparent" />
         </ScrollPanel>
       </div>
-      
-      
-      <div class="font-mono flex flex-col w-full items-center space-y-4 space-x-4 bg-black/40 p-4 rounded-lg  h-[460px]">
-        <div class="text-center my-1" :class="state.compatibleFirmware ? 'text-green-400' : 'text-white/20'" v-if="state.firmwareVersion.length > 0">
-          Device Firmware Version: {{ state.firmwareVersion }}
-          <span class="pi pi-check-circle" v-if="state.compatibleFirmware"></span>
-        </div>
-        <div v-if="!state.compatibleFirmware" class="flex flex-col space-y-4 items-center text-center justify-center py-4 text-red-500 border border-red-500 rounded-lg w-full ">
-          <p>Incompatible Firmware Version<br> Please update NGEN to Firmware v{{ minFirmwareVersion }}</p>
-          <Button as="a"  href="https://ngen.spektroaudio.com/firmwareupdate/" icon="pi pi-link" target="_blank" class="text-xs px-6" label="Firmware Update - NGEN User Manual" size="small" severity="secondary" rounded  />
-        </div>
-        <div  v-show="state.compatibleFirmware && state.firmwareVersion.length > 0">
-          <div class="grid grid-cols-3 space-x-4">
-            <Button  class="text-xs px-6" label="Device Info" size="small" severity="secondary" rounded @click="sendCommand('i')"  />
-            <Button  class="text-xs px-6" label="Track Info" size="small" severity="secondary" rounded @click="sendCommand('t')"  />
-            <Button  class="text-xs px-6" label="Project Info" size="small" severity="secondary" rounded @click="sendCommand('P')"  />
-          </div>
-          <ScrollPanel  class="w-full h-[400px]">
-            <!-- <p> -->
-              
-              <div class="flex justify-center mt-8 "  v-show="state.infoSpinner">
-                <ProgressSpinner style="width: 50px; height: 50px" strokeWidth="8" fill="transparent"
-                animationDuration=".5s"  />
-              </div>
-              
-              <pre class="p-4 rounded-md min-h-[200px] text-white/60 font-mono text-sm">{{ state.memoryInfo }}</pre>
-            <!-- </p> -->
-            
-          </ScrollPanel>
-        </div>
-      </div>
-      
     </div>
     
-    <Projects @projectData="updateProjectData" @send="sendProject" v-if="state.view == 1"/>
-    
-    <!-- <div>{{ checked }}</div> -->
-    
-    <Footer :version="appVersion"/>
   </div>
   
-  <Dialog v-model:visible="state.saveDialog" modal header="Upload File" class="w-80">
-    <div class="text-center text-surface-500 text-white/50 font-mono font-thin text-sm dark:text-surface-400 block mb-8">Select File Type to Upload</div>
-    
-    <div class="grid grid-cols-1 gap-2">
-      <Button type="button" label="Project" @click="uploadFile(1)"></Button>
-      <Button type="button" variant="outlined" label="MIDI File" @click="uploadFile(2)"></Button>
-      <Button type="button" variant="outlined" label="DrumGen Template" @click="uploadFile(3)"></Button>
-      <Button type="button" variant="outlined" label="NSL Script" @click="uploadFile(4)"></Button>
-      <Button type="button" variant="outlined" label="Load Project" @click="uploadFile(5)"></Button>
-    </div>
-  </Dialog>
+  <Projects @projectData="updateProjectData" @send="sendProject" v-if="state.view == 1"/>
   
+  <!-- <div>{{ checked }}</div> -->
   
-  <Dialog v-model:visible="state.deleteDialog" modal header="Delete Files?" class="w-80">
-    <div class="text-center text-surface-500 text-white/50 font-mono font-thin text-sm dark:text-surface-400 block mb-8">
-      {{ checked }}
-    </div>
-    
-    <div class="flex items-center justify-center gap-2">
-      <Button type="button" variant="outlined" class="p-button-secondary" label="Cancel" @click="state.deleteDialog=false;"></Button>
-      
-      <Button type="button" label="Delete" class="p-button-danger" @click="deleteSelected"></Button>
-    </div>
-  </Dialog>
+  <Footer :version="appVersion"/>
+</div>
 
-   <Dialog v-model:visible="state.receivingFile" modal header="Downloading file" class="w-80">
-    <div class="text-center text-surface-500 text-white/50 font-mono font-thin text-sm dark:text-surface-400 block mb-8">
-      <!-- <div class="mb-6">The file is being downloaded...</div> -->
-      <ProgressBar class="mt-4" mode="indeterminate" style="height: 6px"></ProgressBar>
-      </div>
-  </Dialog>
+<Dialog v-model:visible="state.saveDialog" modal header="Upload File" class="w-80">
+  <div class="text-center text-surface-500 text-white/50 font-mono font-thin text-sm dark:text-surface-400 block mb-8">Select File Type to Upload</div>
   
+  <div class="grid grid-cols-1 gap-2">
+    <Button type="button" label="Project" @click="uploadFile(1)"></Button>
+    <Button type="button" variant="outlined" label="MIDI File" @click="uploadFile(2)"></Button>
+    <Button type="button" variant="outlined" label="DrumGen Template" @click="uploadFile(3)"></Button>
+    <Button type="button" variant="outlined" label="NSL Script" @click="uploadFile(4)"></Button>
+    <Button type="button" variant="outlined" label="Load Project" @click="uploadFile(5)"></Button>
+  </div>
+</Dialog>
+
+
+<Dialog v-model:visible="state.deleteDialog" modal header="Delete Files?" class="w-80">
+  <div class="text-center text-surface-500 text-white/50 font-mono font-thin text-sm dark:text-surface-400 block mb-8">
+    <ScrollPanel style="width: 100%; max-height: 300px">
+      <div v-for="(value, key) in selectedFiles()" :key="key" class="text-white/40 m-2">
+        - {{ key }} -
+        <div v-for="item in value" class="text-white/100 m-2">
+          {{ item }}
+        </div>
+      </div>
+    </ScrollPanel>
+  </div>
+  
+  <div class="flex items-center justify-center gap-2">
+    <Button type="button" variant="outlined" class="p-button-secondary" label="Cancel" @click="state.deleteDialog=false;"></Button>
+    
+    <Button type="button" label="Delete" class="p-button-danger" @click="deleteSelected"></Button>
+  </div>
+</Dialog>
+
+<Dialog v-model:visible="state.receivingFile" modal header="Downloading file" class="w-80">
+  <div class="text-center text-surface-500 text-white/50 font-mono font-thin text-sm dark:text-surface-400 block mb-8">
+    <!-- <div class="mb-6">The file is being downloaded...</div> -->
+    <ProgressBar class="mt-4" mode="indeterminate" style="height: 6px"></ProgressBar>
+  </div>
+</Dialog>
+
 </template>
 
 

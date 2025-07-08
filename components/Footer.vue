@@ -12,7 +12,6 @@
         VERSION {{version}} - {{lastCommitDate}}
     </div>
 
-  <!-- <Button type="button" label="Print" class="p-button-danger" @click="console.log(projectData)"></Button> -->
 </template>
 <script>
 export default {
