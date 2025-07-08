@@ -1,4 +1,6 @@
 # NGEN Web Manager
 
-Online file manager for the [Spektro Audio NGEN](https://spektroaudio.com/ngen) based on Nuxt JS + PriveVue
+Online web manager for the [Spektro Audio NGEN](https://spektroaudio.com/ngen) built using Nuxt JS + PriveVue.
+
+Live Version available at: [https://ngen-manager.spektroaudio.com](https://ngen-manager.spektroaudio.com)
 

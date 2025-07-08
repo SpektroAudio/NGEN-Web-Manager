@@ -10,13 +10,19 @@ import { useToast } from 'primevue/usetoast';
 import ProgressSpinner from 'primevue/progressspinner';
 import 'primeicons/primeicons.css'
 
+useHead({
+  title: 'NGEN Web Manager',
+  meta: [
+    { name: 'description', content: 'Web manager tool for the Spektro Audio NGEN - Algorithmic MIDI Workstation' }
+  ],
+  link: [{ rel: "icon", type: "image/x-icon", href: "/favicon.ico" }]
+})
+
 const toast = useToast();
-
-
 
 const isWebSerialSupported = typeof navigator !== 'undefined' && 'serial' in navigator;
 const minFirmwareVersion = 1.4;
-const appVersion = "0.1";
+const appVersion = 0.1;
 const storageOptions = [
 {name: 'Internal Memory', value: 0},
 {name: 'microSD', value: 1},
@@ -681,7 +687,7 @@ const sendCommand = async (cmd: string) => {
         <div class="grid grid-cols-3 space-x-4">
           <Button  class="text-xs px-6" label="Device Info" size="small" severity="secondary" rounded @click="sendCommand('i')"  />
           <Button  class="text-xs px-6" label="Track Info" size="small" severity="secondary" rounded @click="sendCommand('t')"  />
-          <Button  class="text-xs px-6" label="Project Info" size="small" severity="secondary" rounded @click="sendCommand('P')"  />
+          <Button  class="text-xs px-6" label="Project Info" size="small" severity="secondary" rounded @click="sendCommand('p')"  />
         </div>
         <ScrollPanel  class="w-full h-[400px]">
           <!-- <p> -->
