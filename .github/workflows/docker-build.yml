@@ -1,5 +1,5 @@
 name: Build and Publish Docker Image
-
+runs-on: self-hosted
 on:
   push:
     branches: [ main ]
