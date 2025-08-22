@@ -35,13 +35,14 @@
     />
     <Button
       as="a"
-      href="https://spektroaudio.com"
+      href="https://github.com/spektroaudio/ngen-web-manager/"
       icon="pi pi-github"
       target="_blank"
-      class="text-xs px-6 rounded-xl"
+      class="text-xs px-6"
       label="REPOSITORY"
       size="small"
       severity="secondary"
+      rounded
     />
   </div>
 
@@ -80,4 +81,3 @@ export default {
   },
 };
 </script>
-

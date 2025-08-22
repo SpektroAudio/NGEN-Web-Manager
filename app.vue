@@ -25,7 +25,7 @@ useHead({
 const toast = useToast();
 
 const minFirmwareVersion = 1.4;
-
+const maxFileSize = 50000;
 const isWebSerialSupported =
   typeof navigator !== "undefined" && "serial" in navigator;
 const appVersion = 0.1;
@@ -38,6 +38,14 @@ const availableViews = [
   { name: "Example Projects", value: 1 },
 ];
 
+const folderNames = [
+  "Projects",
+  "MIDI Files",
+  "DrumGen Templates",
+  "NSL Scripts",
+];
+const checked = ref([]); // Define the checked property
+const items = ref({}); // Items for the UTree
 const state = reactive({
   isConnected: false,
   receivedMessages: [] as string[],
@@ -60,15 +68,6 @@ const state = reactive({
   },
   view: 0,
 });
-
-const checked = ref([]); // Define the checked property
-const folderNames = [
-  "Projects",
-  "MIDI Files",
-  "DrumGen Templates",
-  "NSL Scripts",
-];
-const items = ref({}); // Items for the UTree
 
 /// Connect to serial port via web serial
 const connect = async () => {
@@ -238,11 +237,22 @@ const setStorageLocation = async (location: number) => {
 
 // Upload file to NGEN via serial
 const uploadFile = (file_mode: number) => {
+  if (state.busy) {
+    toast.add({
+      summary: "Serial port is busy",
+      life: 5000,
+      severity: "error",
+    });
+
+    return;
+  }
+
   console.log("Upload mode:", file_mode);
   const fileInput = document.createElement("input");
   fileInput.type = "file";
   fileInput.accept = "*.hex"; // Accept all file types
 
+  state.busy = true;
   fileInput.onchange = (event) => {
     const file = event.target?.files?.[0];
     if (file) {
@@ -256,6 +266,15 @@ const uploadFile = (file_mode: number) => {
           const filename_len = filename.length;
           const file_size = content.byteLength;
           console.log("File size (bytes):", file_size);
+          if (file_size > maxFileSize) {
+            toast.add({
+              summary: "Error: File too large (>50kb)",
+              life: 5000,
+              severity: "error",
+            });
+
+            return;
+          }
           const file_size_arr = new Uint8Array(
             new Uint32Array([file_size]).buffer,
           );
@@ -286,6 +305,7 @@ const uploadFile = (file_mode: number) => {
               life: 5000,
               severity: "success",
             });
+            state.busy = false;
           }, 1000);
         })
         .catch((error: string) => {
@@ -295,6 +315,7 @@ const uploadFile = (file_mode: number) => {
             life: 5000,
             severity: "danger",
           });
+          state.busy = false;
         });
     }
   };
@@ -310,6 +331,14 @@ const sendProject = () => {
       life: 5000,
       severity: "error",
     });
+  } else if (state.busy) {
+    toast.add({
+      summary: "Serial port is busy",
+      life: 5000,
+      severity: "error",
+    });
+
+    return;
   } else {
     const filename = state.projectData["name"];
     const filename_len = filename.length;
