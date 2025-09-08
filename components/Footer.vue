@@ -1,5 +1,5 @@
 <template>
-  <div class="flex justify-center items-center space-x-8">
+  <div class="flex flex-col md:flex-row justify-center items-center gap-8">
     <Button
       as="a"
       href="https://spektroaudio.com/ngen"

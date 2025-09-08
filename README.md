@@ -35,7 +35,7 @@ To use the web manager, the following are required:
 
 * A Spektro Audio NGEN running **firmware v1.4 or newer**.
 * A browser that supports the Web Serial API (such as **Google Chrome** or **Microsoft Edge**).
-
+* Linux Users: add your username to the **dialout** group (```sudo usermod -a -G dialout USERNAME```)
 
 ### 🔧 How It Works
 
@@ -68,5 +68,5 @@ Once it's running, the application will be available at `http://localhost:3000`.
 
 ---
 
-Spektro Audio
+Spektro Audio  
 [spektroaudio.com](https://spektroaudio.com)

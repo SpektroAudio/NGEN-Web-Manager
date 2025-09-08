@@ -22,6 +22,16 @@ useHead({
   link: [{ rel: "icon", type: "image/x-icon", href: "/favicon.ico" }],
 });
 
+useSeoMeta({
+  title: "NGEN Web Manager",
+  ogTitle: "NGEN Web Manager",
+  description:
+    "Web manager tool for the Spektro Audio NGEN - Algorithmic MIDI Workstation",
+  ogDescription:
+    "Web manager tool for the Spektro Audio NGEN - Algorithmic MIDI Workstation",
+  ogImage: "/img/ManagerScreenshot.png",
+});
+
 const toast = useToast();
 
 const minFirmwareVersion = 1.4;
@@ -673,26 +683,30 @@ const sendCommand = async (cmd: string) => {
     <Toast />
 
     <div class="flex flex-col items-center w-full space-y-6">
-      <div class="flex flex-row items-end justify-between w-3/4">
+      <div
+        class="flex flex-col gap-4 justify-center md:flex-row md:items-end md:justify-between w-3/4"
+      >
         <Header :version="appVersion" ngen_logo="/img/NGENLogo.png" />
         <RequiredVersion :version="minFirmwareVersion" />
       </div>
 
       <Divider class="w-3/4" />
 
-      <div
-        v-if="!isWebSerialSupported"
-        class="flex items-center justify-center py-2 text-red-500 border border-red-500 rounded-lg w-3/4 space-x-4"
-      >
-        <span class="animate-pulse pi pi-exclamation-triangle" />
-        <p>
-          Web Serial API is not supported in your browser. Use Chromium-based
-          browsers.
-        </p>
-      </div>
+      <ClientOnly>
+        <div
+          v-if="!isWebSerialSupported"
+          class="flex items-center justify-center py-2 text-red-500 border border-red-500 rounded-lg w-3/4 space-x-4"
+        >
+          <span class="animate-pulse pi pi-exclamation-triangle" />
+          <p>
+            Web Serial API is not supported in your browser. Use Chromium-based
+            browsers.
+          </p>
+        </div>
+      </ClientOnly>
 
       <div
-        class="flex flex-row justify-between items-center w-3/4 py-2 bg-black/10 px-6 py-4 rounded-l border border-white/10"
+        class="flex flex-col md:flex-row gap-4 justify-between items-center w-3/4 py-2 bg-black/10 px-6 py-4 rounded-l border border-white/10"
       >
         <SelectButton
           v-model="state.view"
@@ -719,7 +733,7 @@ const sendCommand = async (cmd: string) => {
     </div>
 
     <div
-      class="grid grid-cols-2 justify-center gap-4"
+      class="grid grid-cols-1 md:grid-cols-2 justify-center gap-4"
       :class="state.isConnected ? 'blur-none' : 'blur-[4px] opacity-20'"
       v-if="state.view == 0"
     >
