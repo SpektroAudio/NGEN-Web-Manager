@@ -1,0 +1,21 @@
+
+version: '3.8'
+
+services:
+  nuxt-app:
+    image: ghcr.io/spektroaudio/ngen-web-manager:latest
+    container_name: nuxt-app
+    ports:
+      - "3110:3110"
+    environment:
+      - PORT=3110
+      - HOST=0.0.0.0
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    name: coolify
+    external: true
