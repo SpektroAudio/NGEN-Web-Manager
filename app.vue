@@ -245,7 +245,18 @@ const setStorageLocation = async (location: number) => {
   }, 100);
 };
 
-// Upload file to NGEN via serial
+/*
+
+Upload file to NGEN via serial
+
+file_mode:
+1 - Project
+2 - MIDI File
+3 - DrumGen Template
+4 - NSL Script
+5 - Project (Load to Memory)
+
+*/
 const uploadFile = (file_mode: number) => {
   if (state.busy) {
     toast.add({
@@ -262,17 +273,29 @@ const uploadFile = (file_mode: number) => {
   fileInput.type = "file";
   fileInput.accept = "*.hex"; // Accept all file types
 
-  state.busy = true;
   fileInput.onchange = (event) => {
     const file = event.target?.files?.[0];
+
     if (file) {
+      // Check file extension
+      const filename = file.name;
+      const extension = filename.split(".").pop()?.toLowerCase();
+
+      if (extension !== "hex" && extension !== "mid") {
+        toast.add({
+          summary: "Error: Invalid file type",
+          life: 2000,
+          severity: "error",
+        });
+        return;
+      }
+
       // Convert file to a u8 buffer array
       file
         .arrayBuffer()
         .then((content: { byteLength: any }) => {
           // Retrieve file info
           state.saveDialog = false;
-          const filename = file.name;
           const filename_len = filename.length;
           const file_size = content.byteLength;
           console.log("File size (bytes):", file_size);
@@ -298,8 +321,6 @@ const uploadFile = (file_mode: number) => {
             ...new Uint8Array(content),
             ...Array.from("--END--").map((c) => c.charCodeAt(0)),
           ];
-
-          // console.log(msg);
 
           // Send serial message
           sendMessage("R\r\n"); // Start the transmission
