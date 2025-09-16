@@ -5,7 +5,7 @@ import ScrollPanel from "primevue/scrollpanel";
 import { marked } from "marked"; // Import marked library
 
 const availableProjects = ["TestProject", "Tutorial_Polyform"];
-const selectedCity = ref();
+const selectedProject = ref();
 const activeProject = ref({
   name: "",
   description: "",
@@ -14,7 +14,7 @@ const projectDescription = ref("");
 
 const emit = defineEmits(["projectData", "send"]);
 const loadProject = async () => {
-  var filename = selectedCity.value;
+  var filename = selectedProject.value;
   var path = `/projects/${filename}.json`;
   console.log("Loading JSON: " + path);
   $fetch(path, {
@@ -48,7 +48,7 @@ const loadProject = async () => {
     </div>
     <div class="flex items-center justify-between">
       <Select
-        v-model="selectedCity"
+        v-model="selectedProject"
         :options="availableProjects"
         @value-change="loadProject"
         placeholder="Example Projects"
