@@ -131,14 +131,6 @@ const disconnect = async () => {
   if (!state.port || !state.isConnected) return;
   state.busy = true;
   state.isConnected = false;
-  // const reader = state.port.readable?.getReader();
-  // reader.releaseLock();
-  // setTimeout(function () {
-  //   if (state.port) {
-  //     state.port.close();
-  //     state.port = null;
-  //   }
-  // }, 4000);
   try {
     // Cancel any ongoing reads
     if (state.port.readable?.locked) {
