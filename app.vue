@@ -8,6 +8,7 @@ import Dialog from "primevue/dialog";
 import ScrollPanel from "primevue/scrollpanel";
 import { useToast } from "primevue/usetoast";
 import ProgressSpinner from "primevue/progressspinner";
+import ProgressBar from "primevue/progressbar";
 import "primeicons/primeicons.css";
 
 useHead({
@@ -224,7 +225,9 @@ const readData = async () => {
     console.error("Error receiving data from serial port.");
   } finally {
     console.log("Releasing serial port lock");
-    await reader.releaseLock();
+    if (reader) {
+      await reader.releaseLock();
+    }
   }
 };
 

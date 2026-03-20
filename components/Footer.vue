@@ -73,7 +73,9 @@ export default {
           "https://api.github.com/repos/SpektroAudio/NGEN-Web-Manager/releases?per_page=1",
         );
         const data = await response.json();
-        this.lastCommitDate = new Date(data[0].published_at).toLocaleString(); // Format the date
+        if (data && data.length > 0 && data[0].published_at) {
+          this.lastCommitDate = new Date(data[0].published_at).toLocaleString();
+        }
       } catch (error) {
         console.error("Error fetching last commit date:", error);
       }

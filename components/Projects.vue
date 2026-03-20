@@ -1,5 +1,6 @@
 <script setup>
 import Select from "primevue/select";
+import Button from "primevue/button";
 import { ref } from "vue";
 import ScrollPanel from "primevue/scrollpanel";
 import { marked } from "marked"; // Import marked library
