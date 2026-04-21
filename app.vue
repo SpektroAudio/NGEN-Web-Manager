@@ -133,15 +133,32 @@ const disconnect = async () => {
   state.busy = true;
   state.isConnected = false;
   try {
-    // Cancel any ongoing reads
-    if (state.port.readable?.locked) {
+    // Cancel any ongoing reads with timeout to avoid hanging
+    if (state.port.readable) {
       const reader = state.port.readable.getReader();
-      await reader.cancel();
-      await reader.releaseLock();
+      const cancelPromise = reader.cancel();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Reader cancel timeout")), 2000)
+      );
+      try {
+        await Promise.race([cancelPromise, timeoutPromise]);
+      } finally {
+        await reader.releaseLock();
+      }
     }
 
-    // Close the port
-    await state.port.close();
+    // Close the port with timeout to avoid hanging
+    const closePromise = state.port.close();
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Port close timeout")), 3000)
+    );
+    try {
+      await Promise.race([closePromise, timeoutPromise]);
+    } catch (error) {
+      // Port close failed, but continue cleanup
+      console.warn("Port close attempted but may have issues:", error);
+    }
+
     state.port = null;
 
     toast.add({
@@ -196,29 +213,24 @@ const readData = async () => {
   const decoder = new TextDecoder();
   const reader = state.port.readable?.getReader();
   try {
-    while (state.isConnected && reader) {
-      try {
-        if (state.busy == false) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          if (value) {
-            const text = decoder.decode(value);
-            state.receivedMessages.push(text);
+    while (state.port.readable) {
+      if (state.busy == false) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (value) {
+          const text = decoder.decode(value);
+          state.receivedMessages.push(text);
 
-            // console.log(text);
+          // console.log(text);
 
-            // Finish file downloads
-            if (state.receivingFile && text.includes("TX_END")) {
-              console.log("Saving file");
-              state.receivingFile = false;
-              await saveFile();
-              clearReceivedBuffer();
-            }
+          // Finish file downloads
+          if (state.receivingFile && text.includes("TX_END")) {
+            console.log("Saving file");
+            state.receivingFile = false;
+            await saveFile();
+            clearReceivedBuffer();
           }
         }
-      } catch (error) {
-        console.error("Read error:", error);
-        break;
       }
     }
   } catch (error) {
@@ -282,6 +294,7 @@ const uploadFile = (file_mode: number) => {
           life: 2000,
           severity: "error",
         });
+        state.busy = false;
         return;
       }
 
@@ -300,7 +313,7 @@ const uploadFile = (file_mode: number) => {
               life: 5000,
               severity: "error",
             });
-
+            state.busy = false;
             return;
           }
           const file_size_arr = new Uint8Array(
@@ -400,7 +413,7 @@ const sendProject = () => {
 // Request NGEN firmware version
 const getVersion = async () => {
   console.log("Checking firmware version");
-  sendMessage("v\r\n");
+  await sendMessage("v\r\n");
   await new Promise((resolve) => {
     var timeout = setTimeout(function () {
       state.firmwareVersion = state.receivedMessages.join("");
@@ -414,7 +427,7 @@ const getVersion = async () => {
 
 // Sends a message to the serial port, wait for a response and return the value
 const getValue = async (msg: string): Promise<any> => {
-  sendMessage(msg + "\r\n");
+  await sendMessage(msg + "\r\n");
   clearReceivedBuffer();
   let value = await new Promise((resolve) => {
     let timeout = setTimeout(function () {
@@ -527,9 +540,7 @@ const sendData = async (data: Uint8Array) => {
   state.busy = true;
   const writer = state.port.writable?.getWriter();
   if (writer) {
-    for (const value of data) {
-      await writer.write(new Uint8Array([value]));
-    }
+    await writer.write(data);
     writer.releaseLock();
   }
   state.busy = false;
