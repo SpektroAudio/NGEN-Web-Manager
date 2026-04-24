@@ -5,8 +5,12 @@ concurrency:
   cancel-in-progress: true
 
 on:
-  push:
-    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Custom image tag (defaults to branch name + short SHA)'
+        required: false
+        type: string
 
 env:
   REGISTRY: ghcr.io
