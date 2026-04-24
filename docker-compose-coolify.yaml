@@ -1,9 +1,8 @@
 
-version: '3.8'
-
 services:
   nuxt-app:
     image: ghcr.io/spektroaudio/ngen-web-manager:latest
+    pull_policy: always
     container_name: nuxt-app
     ports:
       - "3110:3110"
