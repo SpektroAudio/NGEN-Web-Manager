@@ -14,16 +14,6 @@ services:
     networks:
       - coolify
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.nuxt-app-http.rule=Host(`ngen-manager.spektroaudio.com`)"
-      - "traefik.http.routers.nuxt-app-http.entrypoints=http"
-      - "traefik.http.routers.nuxt-app-http.priority=9999"
-      - "traefik.http.routers.nuxt-app-http.middlewares=gzip"
-      - "traefik.http.routers.nuxt-app-https.rule=Host(`ngen-manager.spektroaudio.com`)"
-      - "traefik.http.routers.nuxt-app-https.entrypoints=https"
-      - "traefik.http.routers.nuxt-app-https.tls=true"
-      - "traefik.http.routers.nuxt-app-https.tls.certresolver=letsencrypt"
-      - "traefik.http.services.nuxt-app.loadbalancer.server.port=3110"
       - "coolify.managed=true"
 
 networks:
