@@ -1,0 +1,14 @@
+.git
+.github
+node_modules
+.nuxt
+.output
+dist
+.DS_Store
+*.log
+.env
+.env.*
+.vscode
+.idea
+coverage
+.nyc_output
