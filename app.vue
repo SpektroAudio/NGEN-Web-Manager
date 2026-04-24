@@ -138,7 +138,7 @@ const disconnect = async () => {
       const reader = state.port.readable.getReader();
       const cancelPromise = reader.cancel();
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Reader cancel timeout")), 2000)
+        setTimeout(() => reject(new Error("Reader cancel timeout")), 2000),
       );
       try {
         await Promise.race([cancelPromise, timeoutPromise]);
@@ -150,7 +150,7 @@ const disconnect = async () => {
     // Close the port with timeout to avoid hanging
     const closePromise = state.port.close();
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Port close timeout")), 3000)
+      setTimeout(() => reject(new Error("Port close timeout")), 3000),
     );
     try {
       await Promise.race([closePromise, timeoutPromise]);
@@ -528,8 +528,11 @@ const sendMessage = async (message: string) => {
   const writer = state.port.writable?.getWriter();
   if (writer) {
     const encoder = new TextEncoder();
-    await writer.write(encoder.encode(message));
-    writer.releaseLock();
+    try {
+      await writer.write(encoder.encode(message));
+    } finally {
+      writer.releaseLock();
+    }
   }
   state.busy = false;
 };
@@ -540,8 +543,11 @@ const sendData = async (data: Uint8Array) => {
   state.busy = true;
   const writer = state.port.writable?.getWriter();
   if (writer) {
-    await writer.write(data);
-    writer.releaseLock();
+    try {
+      await writer.write(data);
+    } finally {
+      writer.releaseLock();
+    }
   }
   state.busy = false;
 };
