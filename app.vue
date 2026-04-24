@@ -57,6 +57,7 @@ const folderNames = [
 ];
 const checked = ref([]); // Define the checked property
 const items = ref({}); // Items for the UTree
+const downloadResolve = ref<(() => void) | null>(null);
 const state = reactive({
   isConnected: false,
   receivedMessages: [] as string[],
@@ -221,14 +222,15 @@ const readData = async () => {
           const text = decoder.decode(value);
           state.receivedMessages.push(text);
 
-          // console.log(text);
-
           // Finish file downloads
           if (state.receivingFile && text.includes("TX_END")) {
             console.log("Saving file");
             state.receivingFile = false;
             await saveFile();
             clearReceivedBuffer();
+            if (downloadResolve.value) {
+              downloadResolve.value();
+            }
           }
         }
       }
@@ -554,34 +556,52 @@ const sendData = async (data: Uint8Array) => {
 
 // Request file content
 const downloadFile = async (folder: string, file: string) => {
-  const message = `F\r\n${folder}\r\n${file}\r\n`;
-  state.receivingFile = true;
-  sendMessage(message);
+  return new Promise<void>((resolve, reject) => {
+    // Safety timeout in case TX_END never arrives
+    const timeout = setTimeout(() => {
+      downloadResolve.value = null;
+      state.receivingFile = false;
+      reject(new Error(`Download timeout: ${folder}/${file}`));
+    }, 10000);
+
+    downloadResolve.value = () => {
+      clearTimeout(timeout);
+      downloadResolve.value = null;
+      resolve();
+    };
+
+    console.log("Requesting file...");
+    const message = `F\r\n${folder}\r\n${file}\r\n`;
+    state.receivingFile = true;
+    sendMessage(message);
+  });
 };
 
 // Iterate through the selected files and download each item individually
 const downloadSelected = async () => {
-  for (let key in checked.value) {
-    if (checked.value[key]["checked"] == true && key.includes("_")) {
-      var file_info = key.split("_");
-      var folder = file_info[0];
-      var file = file_info[1];
-      console.log("Downloading file " + folder + " / " + file);
-      await downloadFile(folder, file);
+  const toDownload: string[] = [];
 
-      // Wait until file is received
-      await new Promise((resolve) => {
-        const interval = setInterval(() => {
-          if (!state.receivingFile) {
-            clearInterval(interval);
-            resolve();
-          } else {
-            console.log("Waiting...");
-          }
-        }, 100); // Check every 100ms
+  for (let key in checked.value) {
+    if (checked.value[key]["checked"] === true && key.includes("_")) {
+      toDownload.push(key);
+    }
+  }
+
+  for (const key of toDownload) {
+    const [folder, file] = key.split("_");
+    console.log("Downloading file " + folder + " / " + file);
+    try {
+      await downloadFile(folder, file);
+    } catch (err) {
+      console.error(err);
+      toast.add({
+        summary: "Download failed: " + key,
+        life: 3000,
+        severity: "error",
       });
     }
   }
+
   checked.value = [];
 };
 
@@ -687,10 +707,12 @@ const saveFile = async () => {
     type: "application/octet-stream",
   });
   const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(blob);
+  link.href = url;
   link.download = filename;
   document.body.appendChild(link);
   link.click();
+  URL.revokeObjectURL(url);
   document.body.removeChild(link);
 };
 
