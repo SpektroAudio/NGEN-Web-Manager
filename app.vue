@@ -10,6 +10,7 @@ import { useToast } from "primevue/usetoast";
 import ProgressSpinner from "primevue/progressspinner";
 import ProgressBar from "primevue/progressbar";
 import "primeicons/primeicons.css";
+import { buildUploadMessage, useNslEditor } from "./composables/useNslEditor";
 
 useHead({
   title: "NGEN Web Manager",
@@ -39,7 +40,7 @@ const minFirmwareVersion = 1.4;
 const maxFileSize = 50000;
 const isWebSerialSupported =
   typeof navigator !== "undefined" && "serial" in navigator;
-const appVersion = 0.1;
+const appVersion = 0.2;
 const storageOptions = [
   { name: "Internal Memory", value: 0 },
   { name: "microSD", value: 1 },
@@ -47,6 +48,7 @@ const storageOptions = [
 const availableViews = [
   { name: "Browser", value: 0 },
   { name: "Example Projects", value: 1 },
+  { name: "NSL Editor", value: 2 },
 ];
 
 const folderNames = [
@@ -79,6 +81,8 @@ const state = reactive({
     data: [];
   },
   view: 0,
+  nslReceived: {} as { name: string; data: Uint8Array },
+  receiveMode: "download" as "download" | "buffer",
 });
 
 /// Connect to serial port via web serial
@@ -290,7 +294,7 @@ const uploadFile = (file_mode: number) => {
       const filename = file.name;
       const extension = filename.split(".").pop()?.toLowerCase();
 
-      if (extension !== "hex" && extension !== "mid") {
+      if (extension !== "hex" && extension !== "mid" && extension != "nsl") {
         toast.add({
           summary: "Error: Invalid file type",
           life: 2000,
@@ -306,7 +310,6 @@ const uploadFile = (file_mode: number) => {
         .then((content: { byteLength: any }) => {
           // Retrieve file info
           state.saveDialog = false;
-          const filename_len = filename.length;
           const file_size = content.byteLength;
           console.log("File size (bytes):", file_size);
           if (file_size > maxFileSize) {
@@ -318,19 +321,12 @@ const uploadFile = (file_mode: number) => {
             state.busy = false;
             return;
           }
-          const file_size_arr = new Uint8Array(
-            new Uint32Array([file_size]).buffer,
-          );
-
           // Create serial message
-          const msg = [
+          const msg = buildUploadMessage(
             file_mode,
-            filename_len,
-            ...Array.from(filename).map((c) => c.charCodeAt(0)),
-            ...file_size_arr,
-            ...new Uint8Array(content),
-            ...Array.from("--END--").map((c) => c.charCodeAt(0)),
-          ];
+            filename,
+            new Uint8Array(content),
+          );
 
           // Send serial message
           sendMessage("R\r\n"); // Start the transmission
@@ -382,20 +378,15 @@ const sendProject = () => {
     return;
   } else {
     const filename = state.projectData["name"];
-    const filename_len = filename.length;
     const file_size = state.projectData["data"].length;
 
     console.log("File size (bytes):", file_size);
 
-    const file_size_arr = new Uint8Array(new Uint32Array([file_size]).buffer);
-    const msg = [
+    const msg = buildUploadMessage(
       5,
-      filename_len,
-      ...Array.from(filename).map((c) => c.charCodeAt(0)),
-      ...file_size_arr,
-      ...new Uint8Array(state.projectData["data"]),
-      ...Array.from("--END--").map((c) => c.charCodeAt(0)),
-    ];
+      filename,
+      new Uint8Array(state.projectData["data"]),
+    );
 
     // console.log(msg);
 
@@ -605,6 +596,22 @@ const downloadSelected = async () => {
   checked.value = [];
 };
 
+const {
+  nslCommands,
+  nslFilename,
+  nslBaseline,
+  nslFileNames,
+  sendNslScript,
+  handleLoadFromDevice,
+} = useNslEditor({
+  state,
+  toast,
+  folderNames,
+  sendMessage,
+  sendData,
+  downloadFile,
+});
+
 const updateProjectData = async (data: any) => {
   state.projectData = data;
 };
@@ -693,6 +700,12 @@ const saveFile = async () => {
       life: 1000,
       severity: "error",
     });
+    return;
+  }
+
+  // NSL Editor buffer mode (keep the bytes in state instead of downloading)
+  if (state.receiveMode === "buffer") {
+    state.nslReceived = { name: filename, data: file_body_array };
     return;
   }
 
@@ -941,8 +954,7 @@ const sendCommand = async (cmd: string) => {
 
             <pre
               class="p-4 rounded-md min-h-[200px] text-white/60 font-mono text-sm"
-              >{{ state.memoryInfo }}</pre
-            >
+              >{{ state.memoryInfo }}</pre>
             <!-- </p> -->
           </ScrollPanel>
         </div>
@@ -953,6 +965,18 @@ const sendCommand = async (cmd: string) => {
       @projectData="updateProjectData"
       @send="sendProject"
       v-if="state.view == 1"
+    />
+
+    <NslEditor
+      v-if="state.view == 2"
+      :commands="nslCommands"
+      v-model:filename="nslFilename"
+      v-model:baseline="nslBaseline"
+      :is-connected="state.isConnected && state.compatibleFirmware"
+      :nsl-files="nslFileNames"
+      :nsl-received="state.nslReceived"
+      @send-to-ngen="sendNslScript"
+      @load-from-device="handleLoadFromDevice"
     />
 
     <!-- <div>{{ checked }}</div> -->
