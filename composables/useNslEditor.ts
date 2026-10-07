@@ -20,6 +20,7 @@ type NslDeps = {
     isConnected: boolean;
     compatibleFirmware: boolean;
     busy: boolean;
+    uploading: boolean;
     files: unknown[];
     nslReceived: { name: string; data: Uint8Array };
     receiveMode: "download" | "buffer";
@@ -54,14 +55,14 @@ export const useNslEditor = ({
     return folder ? folder.files : [];
   });
 
-  /// Send an NSL script to NGEN (upload mode 4) — success toast is handled by the editor
-  const sendNslScript = ({
+  /// Send an NSL script to NGEN (upload mode 4) — wait for response (similar to sendProject)
+  const sendNslScript = async ({
     filename,
     bytes,
   }: {
     filename: string;
     bytes: Uint8Array;
-  }) => {
+  }): Promise<void> => {
     if (!state.isConnected || !state.compatibleFirmware) {
       toast.add({
         summary: "Please connect to a compatible NGEN",
@@ -80,11 +81,28 @@ export const useNslEditor = ({
     }
 
     console.log("NSL script size (bytes):", bytes.length);
-    sendMessage("R\r\n"); // Start the transmission
-    setTimeout(function () {
-      sendData(new Uint8Array(buildUploadMessage(4, filename, bytes)));
+    try {
+      await sendMessage("R\r\n");
+      state.uploading = true;
+      await new Promise((r) => setTimeout(r, 1000));
+      await sendData(new Uint8Array(buildUploadMessage(4, filename, bytes)));
       console.log("NSL script sent: " + filename);
-    }, 1000);
+      toast.add({
+        summary: "Script sent to NGEN: " + filename,
+        life: 3000,
+        severity: "success",
+      });
+    } catch (error) {
+      console.error("Error sending NSL script:", error);
+      toast.add({
+        summary: "Error sending NSL script: " + filename,
+        life: 5000,
+        severity: "error",
+      });
+    } finally {
+      state.uploading = false;
+      state.busy = false;
+    }
   };
 
   /// Load an NSL script from the device into the editor (buffer receive mode)

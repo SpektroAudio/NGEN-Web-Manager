@@ -73,6 +73,7 @@ const state = reactive({
   busy: false,
   waiting: false,
   receivingFile: false,
+  uploading: false,
   saveDialog: false,
   deleteDialog: false,
   infoSpinner: false,
@@ -333,21 +334,35 @@ const uploadFile = (file_mode: number) => {
           );
 
           // Send serial message
-          sendMessage("R\r\n"); // Start the transmission
-          setTimeout(function () {
-            sendData(new Uint8Array(msg)); // Send the message
-            console.log("File sent");
-            toast.add({
-              summary:
-                "File uploaded to " +
-                folderNames[file_mode - 1] +
-                ": " +
-                filename,
-              life: 5000,
-              severity: "success",
-            });
-            state.busy = false;
-          }, 1000);
+          const sendTransfer = async () => {
+            try {
+              await sendMessage("R\r\n"); // Start the transmission
+              state.uploading = true;
+              await new Promise((r) => setTimeout(r, 1000));
+              await sendData(new Uint8Array(msg)); // Send the message
+              console.log("File sent");
+              toast.add({
+                summary:
+                  "File uploaded to " +
+                  folderNames[file_mode - 1] +
+                  ": " +
+                  filename,
+                life: 5000,
+                severity: "success",
+              });
+            } catch (error) {
+              console.error("Error uploading file:", error);
+              toast.add({
+                summary: "Error uploading file: " + filename,
+                life: 5000,
+                severity: "error",
+              });
+            } finally {
+              state.uploading = false;
+              state.busy = false;
+            }
+          };
+          sendTransfer();
         })
         .catch((error: string) => {
           console.error("Error:", error);
@@ -365,7 +380,7 @@ const uploadFile = (file_mode: number) => {
 };
 
 // Send an example project to NGEN via serial (loads directly into memory)
-const sendProject = () => {
+const sendProject = async () => {
   if (!state.isConnected) {
     toast.add({
       summary: "Please connect to NGEN",
@@ -394,16 +409,28 @@ const sendProject = () => {
 
     // console.log(msg);
 
-    sendMessage("R\r\n"); // Start the transmission
-    setTimeout(function () {
-      sendData(new Uint8Array(msg)); // Send the message
+    try {
+      await sendMessage("R\r\n");
+      state.uploading = true;
+      await new Promise((r) => setTimeout(r, 1000));
+      await sendData(new Uint8Array(msg));
       console.log("File sent");
       toast.add({
         summary: "Loaded project into memory: " + filename,
         life: 5000,
         severity: "success",
       });
-    }, 1000);
+    } catch (error) {
+      console.error("Error sending project:", error);
+      toast.add({
+        summary: "Error loading project: " + filename,
+        life: 5000,
+        severity: "error",
+      });
+    } finally {
+      state.uploading = false;
+      state.busy = false;
+    }
   }
 };
 
@@ -1080,6 +1107,23 @@ const sendCommand = async (cmd: string) => {
       class="text-center text-surface-500 text-white/50 font-mono font-thin text-sm dark:text-surface-400 block mb-8"
     >
       <!-- <div class="mb-6">The file is being downloaded...</div> -->
+      <ProgressBar
+        class="mt-4"
+        mode="indeterminate"
+        style="height: 6px"
+      ></ProgressBar>
+    </div>
+  </Dialog>
+
+  <Dialog
+    v-model:visible="state.uploading"
+    modal
+    header="Uploading file"
+    class="w-80"
+  >
+    <div
+      class="text-center text-surface-500 text-white/50 font-mono font-thin text-sm dark:text-surface-400 block mb-8"
+    >
       <ProgressBar
         class="mt-4"
         mode="indeterminate"

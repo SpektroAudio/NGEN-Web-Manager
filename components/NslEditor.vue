@@ -287,11 +287,6 @@ const doSend = () => {
   const b = encodeNow();
   if (!b) return;
   emit("send-to-ngen", { filename: filename.value, bytes: new Uint8Array(b) });
-  toast.add({
-    summary: "Script sent to NGEN: " + filename.value,
-    life: 3000,
-    severity: "success",
-  });
   emit("update:baseline", b);
 };
 
