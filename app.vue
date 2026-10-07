@@ -60,6 +60,8 @@ const folderNames = [
 const checked = ref([]); // Define the checked property
 const items = ref({}); // Items for the UTree
 const downloadResolve = ref<(() => void) | null>(null);
+let activeReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+let readLoopPromise: Promise<void> | null = null;
 const state = reactive({
   isConnected: false,
   receivedMessages: [] as string[],
@@ -87,6 +89,8 @@ const state = reactive({
 
 /// Connect to serial port via web serial
 const connect = async () => {
+  // Prevent double connect
+  if (state.isConnected) return;
   try {
     // state.port = await navigator.serial.requestPort();
     // await state.port.open({ baudRate: 9600 });
@@ -110,7 +114,7 @@ const connect = async () => {
     state.isConnected = true;
     state.waiting = true;
     console.log("Requesting initial files...");
-    readData();
+    readLoopPromise = readData();
     console.log("Requesting NGEN version...");
     await getVersion();
     if (state.compatibleFirmware) {
@@ -136,33 +140,25 @@ const disconnect = async () => {
   // Cancel if not connected
   if (!state.port || !state.isConnected) return;
   state.busy = true;
-  state.isConnected = false;
+  state.isConnected = false; // Stop readData()
   try {
-    // Cancel any ongoing reads with timeout to avoid hanging
-    if (state.port.readable) {
-      const reader = state.port.readable.getReader();
-      const cancelPromise = reader.cancel();
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Reader cancel timeout")), 2000),
-      );
-      try {
-        await Promise.race([cancelPromise, timeoutPromise]);
-      } finally {
-        await reader.releaseLock();
-      }
+    // Continue read() and stop the loop to release the lock
+    if (activeReader) await activeReader.cancel().catch(() => {});
+    if (readLoopPromise) {
+      await Promise.race([
+        readLoopPromise.catch(() => {}),
+        new Promise((r) => setTimeout(r, 2000)),
+      ]);
+      readLoopPromise = null;
     }
 
-    // Close the port with timeout to avoid hanging
-    const closePromise = state.port.close();
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Port close timeout")), 3000),
-    );
-    try {
-      await Promise.race([closePromise, timeoutPromise]);
-    } catch (error) {
-      // Port close failed, but continue cleanup
-      console.warn("Port close attempted but may have issues:", error);
-    }
+    // Close the port with timeout
+    await Promise.race([
+      state.port.close(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Port close timeout")), 3000),
+      ),
+    ]);
 
     state.port = null;
 
@@ -216,9 +212,16 @@ const clearReceivedBuffer = () => {
 const readData = async () => {
   if (!state.port || !state.port.readable) return;
   const decoder = new TextDecoder();
-  const reader = state.port.readable?.getReader();
+  let reader: ReadableStreamDefaultReader<Uint8Array>;
   try {
-    while (state.port.readable) {
+    reader = state.port.readable.getReader();
+  } catch (error) {
+    console.error("Failed to acquire serial reader:", error);
+    return;
+  }
+  activeReader = reader;
+  try {
+    while (state.isConnected && state.port?.readable) {
       if (state.busy == false) {
         const { value, done } = await reader.read();
         if (done) break;
@@ -237,15 +240,16 @@ const readData = async () => {
             }
           }
         }
+      } else {
+        await new Promise((r) => setTimeout(r, 20));
       }
     }
   } catch (error) {
     console.error("Error receiving data from serial port.");
   } finally {
+    activeReader = null;
     console.log("Releasing serial port lock");
-    if (reader) {
-      await reader.releaseLock();
-    }
+    await reader.releaseLock();
   }
 };
 
