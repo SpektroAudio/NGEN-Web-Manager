@@ -268,10 +268,9 @@ const readData = async () => {
 // Change NGEN's storage location
 const setStorageLocation = async (location: number) => {
   checked.value = [];
-  await sendMessage("S\r\n" + state.storageLocation + "\r\n");
-  setTimeout(() => {
-    requestFiles();
-  }, 100);
+  state.waiting = true;
+  await getValue("S\r\n" + location);
+  requestFiles();
 };
 
 /*
