@@ -56,6 +56,7 @@ const folderNames = [
   "MIDI Files",
   "DrumGen Templates",
   "NSL Scripts",
+  "Memory",
 ];
 const checked = ref([]); // Define the checked property
 const items = ref({}); // Items for the UTree
