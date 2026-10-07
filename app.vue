@@ -58,6 +58,16 @@ const folderNames = [
   "NSL Scripts",
   "Memory",
 ];
+
+// File extension per upload mode
+const uploadExtensions: Record<number, string> = {
+  1: "hex", // Project
+  2: "mid", // MIDI File
+  3: "hex", // DrumGen Template
+  4: "nsl", // NSL Script
+  5: "hex", // Project (Load to Memory)
+};
+
 const checked = ref([]); // Define the checked property
 const items = ref({}); // Items for the UTree
 const downloadResolve = ref<(() => void) | null>(null);
@@ -290,7 +300,7 @@ const uploadFile = (file_mode: number) => {
   console.log("Upload mode:", file_mode);
   const fileInput = document.createElement("input");
   fileInput.type = "file";
-  fileInput.accept = "*.hex"; // Accept all file types
+  fileInput.accept = "." + uploadExtensions[file_mode];
 
   fileInput.onchange = (event) => {
     const file = event.target?.files?.[0];
@@ -300,9 +310,10 @@ const uploadFile = (file_mode: number) => {
       const filename = file.name;
       const extension = filename.split(".").pop()?.toLowerCase();
 
-      if (extension !== "hex" && extension !== "mid" && extension != "nsl") {
+      const expected = uploadExtensions[file_mode];
+      if (extension !== expected) {
         toast.add({
-          summary: "Error: Invalid file type",
+          summary: `Error: Invalid file type (expected .${expected})`,
           life: 2000,
           severity: "error",
         });
