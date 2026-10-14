@@ -5,7 +5,7 @@
         <img
           src="/img/NGENLogo.png"
           class="transition duration-150 ease-in-out w-[128px] hover:scale-110 opacity-30 hover:opacity-80"
-        />
+        >
       </a>
     </div>
     <div class="flex flex-col items-start justify-right md:gap-0">
@@ -14,7 +14,7 @@
         <span class="text-xs text-white/60">v{{ version }}</span>
       </div>
       <div class="font-light font-mono text-white/30 text-center space-y-4">
-        Web File Manager for NGEN<br />
+        Web File Manager for NGEN<br>
       </div>
     </div>
   </div>

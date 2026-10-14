@@ -669,7 +669,7 @@ const deleteSelected = async () => {
   let count: number = 0;
   state.deleteDialog = false;
   for (let key in checked.value) {
-    if (checked.value[key]["checked"] == true) {
+    if (checked.value[key]["checked"] == true && key.includes("_")) {
       var file_info = key.split("_");
       var folder = file_info[0];
       var file = file_info[1];
@@ -823,16 +823,16 @@ const sendCommand = async (cmd: string) => {
           class="opacity-80"
           size="large"
           :options="availableViews"
-          optionLabel="name"
-          optionValue="value"
-          :allowEmpty="false"
+          option-label="name"
+          option-value="value"
+          :allow-empty="false"
         />
         <div class="flex space-x-4 justify-center items-center">
           <span
-            class="pi pi-angle-double-right opacity-20 animate-pulse"
             v-if="!state.isConnected"
+            class="pi pi-angle-double-right opacity-20 animate-pulse"
             style="font-size: 24px"
-          ></span>
+          />
           <Button
             :label="state.isConnected ? 'Disconnect' : 'Connect to NGEN'"
             :class="state.isConnected ? 'p-button-danger' : 'p-button-success'"
@@ -843,30 +843,32 @@ const sendCommand = async (cmd: string) => {
     </div>
 
     <div
+      v-if="state.view == 0"
       class="grid grid-cols-1 md:grid-cols-2 justify-center gap-4"
       :class="state.isConnected ? 'blur-none' : 'blur-[4px] opacity-20'"
-      v-if="state.view == 0"
     >
       <div
         class="flex-auto border items-center justify-center border-white/10 rounded-md p-8 w-full space-y-4 h-[460px]"
       >
         <div class="flex items-center">
-          <h2 class="text-white/80">FILE MANAGER</h2>
+          <h2 class="text-white/80">
+            FILE MANAGER
+          </h2>
           <SelectButton
             v-if="
               state.isConnected &&
-              state.compatibleFirmware &&
-              state.storageLocation < 2
+                state.compatibleFirmware &&
+                state.storageLocation < 2
             "
-            :disabled="state.waiting"
             v-model="state.storageLocation"
+            :disabled="state.waiting"
             class="ml-auto text-xs opacity-80"
             size="small"
             :options="storageOptions"
-            optionValue="value"
-            optionLabel="name"
+            option-value="value"
+            option-label="name"
+            :allow-empty="false"
             @value-change="setStorageLocation"
-            :allowEmpty="false"
           />
         </div>
         <div class="grid grid-cols-4 gap-4">
@@ -908,12 +910,12 @@ const sendCommand = async (cmd: string) => {
         </div>
         <ScrollPanel style="width: 100%; height: 300px">
           <Tree
+            v-model:selection-keys="checked"
             :loading="state.waiting"
             :filter="true"
-            filterMode="lenient"
+            filter-mode="lenient"
             :value="items"
-            v-model:selectionKeys="checked"
-            selectionMode="checkbox"
+            selection-mode="checkbox"
             class="w-full md:w-[30rem] rounded-l bg-transparent"
           />
         </ScrollPanel>
@@ -923,22 +925,22 @@ const sendCommand = async (cmd: string) => {
         class="font-mono flex flex-col w-full items-center space-y-4 space-x-4 bg-black/40 p-4 rounded-lg h-[460px]"
       >
         <div
+          v-if="state.firmwareVersion.length > 0"
           class="text-center my-1"
           :class="state.compatibleFirmware ? 'text-green-400' : 'text-white/20'"
-          v-if="state.firmwareVersion.length > 0"
         >
           Device Firmware Version: {{ state.firmwareVersion }}
           <span
-            class="pi pi-check-circle"
             v-if="state.compatibleFirmware"
-          ></span>
+            class="pi pi-check-circle"
+          />
         </div>
         <div
           v-if="!state.compatibleFirmware"
           class="flex flex-col space-y-4 items-center text-center justify-center py-4 text-red-500 border border-red-500 rounded-lg w-full"
         >
           <p>
-            Incompatible Firmware Version<br />
+            Incompatible Firmware Version<br>
             Please update NGEN to Firmware v{{ minFirmwareVersion }}
           </p>
           <Button
@@ -985,18 +987,18 @@ const sendCommand = async (cmd: string) => {
           <ScrollPanel class="w-full h-[400px]">
             <!-- <p> -->
 
-            <div class="flex justify-center mt-8" v-show="state.infoSpinner">
+            <div v-show="state.infoSpinner" class="flex justify-center mt-8">
               <ProgressSpinner
                 style="width: 50px; height: 50px"
-                strokeWidth="8"
+                stroke-width="8"
                 fill="transparent"
-                animationDuration=".5s"
+                animation-duration=".5s"
               />
             </div>
 
             <pre
               class="p-4 rounded-md min-h-[200px] text-white/60 font-mono text-sm"
-              >{{ state.memoryInfo }}</pre>
+            >{{ state.memoryInfo }}</pre>
             <!-- </p> -->
           </ScrollPanel>
         </div>
@@ -1004,16 +1006,16 @@ const sendCommand = async (cmd: string) => {
     </div>
 
     <Projects
-      @projectData="updateProjectData"
-      @send="sendProject"
       v-if="state.view == 1"
+      @project-data="updateProjectData"
+      @send="sendProject"
     />
 
     <NslEditor
       v-if="state.view == 2"
-      :commands="nslCommands"
       v-model:filename="nslFilename"
       v-model:baseline="nslBaseline"
+      :commands="nslCommands"
       :is-connected="state.isConnected && state.compatibleFirmware"
       :nsl-files="nslFileNames"
       :nsl-received="state.nslReceived"
@@ -1039,31 +1041,31 @@ const sendCommand = async (cmd: string) => {
     </div>
 
     <div class="grid grid-cols-1 gap-2">
-      <Button type="button" label="Project" @click="uploadFile(1)"></Button>
+      <Button type="button" label="Project" @click="uploadFile(1)" />
       <Button
         type="button"
         variant="outlined"
         label="MIDI File"
         @click="uploadFile(2)"
-      ></Button>
+      />
       <Button
         type="button"
         variant="outlined"
         label="DrumGen Template"
         @click="uploadFile(3)"
-      ></Button>
+      />
       <Button
         type="button"
         variant="outlined"
         label="NSL Script"
         @click="uploadFile(4)"
-      ></Button>
+      />
       <Button
         type="button"
         variant="outlined"
         label="Load Project"
         @click="uploadFile(5)"
-      ></Button>
+      />
     </div>
   </Dialog>
 
@@ -1097,14 +1099,14 @@ const sendCommand = async (cmd: string) => {
         class="p-button-secondary"
         label="Cancel"
         @click="state.deleteDialog = false"
-      ></Button>
+      />
 
       <Button
         type="button"
         label="Delete"
         class="p-button-danger"
         @click="deleteSelected"
-      ></Button>
+      />
     </div>
   </Dialog>
 
@@ -1122,7 +1124,7 @@ const sendCommand = async (cmd: string) => {
         class="mt-4"
         mode="indeterminate"
         style="height: 6px"
-      ></ProgressBar>
+      />
     </div>
   </Dialog>
 
@@ -1139,7 +1141,7 @@ const sendCommand = async (cmd: string) => {
         class="mt-4"
         mode="indeterminate"
         style="height: 6px"
-      ></ProgressBar>
+      />
     </div>
   </Dialog>
 </template>

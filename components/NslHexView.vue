@@ -39,7 +39,9 @@ const byteClass = (idx: number): string => {
     <div
       class="min-h-0 shrink overflow-y-auto bg-black/30 rounded-lg p-4 border border-white/20"
     >
-      <p class="text-xs font-mono text-white/60 mb-2">Generation Steps</p>
+      <p class="text-xs font-mono text-white/60 mb-2">
+        Generation Steps
+      </p>
       <ul v-if="steps.length > 0" class="m-0 p-0 list-none space-y-1">
         <li
           v-for="(step, i) in steps"
@@ -64,17 +66,16 @@ const byteClass = (idx: number): string => {
     <div
       class="min-h-0 shrink overflow-y-auto bg-black/30 rounded-lg p-4 border border-white/20"
     >
-      <p class="text-xs font-mono text-white/60 mb-2">Code output</p>
+      <p class="text-xs font-mono text-white/60 mb-2">
+        Code output
+      </p>
       <div v-if="bytes.length > 0" class="font-mono text-xs leading-5">
         <div v-for="line in hexLines" :key="line.offset" class="flex">
-          <span class="w-[7ch] shrink-0 text-white/40"
-            >{{ line.offset }} | </span
-          ><span
+          <span class="w-[7ch] shrink-0 text-white/40">{{ line.offset }} | </span><span
             v-for="cell in line.cells"
             :key="cell.idx"
             :class="[byteClass(cell.idx), 'w-[3ch] transition-colors']"
-            >{{ cell.hex }}</span
-          >
+          >{{ cell.hex }}</span>
         </div>
       </div>
       <p v-else class="text-sm font-thin font-mono text-white/40">

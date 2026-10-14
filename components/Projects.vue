@@ -51,9 +51,9 @@ const loadProject = async () => {
       <Select
         v-model="selectedProject"
         :options="availableProjects"
-        @value-change="loadProject"
         placeholder="Example Projects"
         class="w-1/3"
+        @value-change="loadProject"
       />
 
       <Button
@@ -61,7 +61,7 @@ const loadProject = async () => {
         label="Send to NGEN"
         class="p-button-primary mr-2"
         @click="emit('send')"
-      ></Button>
+      />
     </div>
     <div>
       <ScrollPanel

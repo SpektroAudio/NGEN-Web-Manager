@@ -111,8 +111,7 @@ const clampValue = (name: "x" | "y") => {
         </button>
         <span
           class="w-4 shrink-0 text-right text-[11px] font-mono text-white/30"
-          >{{ index + 1 }}</span
-        >
+        >{{ index + 1 }}</span>
         <span class="shrink-0 text-xs font-mono font-bold uppercase">{{
           entry?.label ?? cmd.cmd
         }}</span>
@@ -128,15 +127,14 @@ const clampValue = (name: "x" | "y") => {
         >
           <span
             class="text-[10px] font-mono uppercase tracking-wide text-white/40"
-            >{{ entry.offsetLabel }}:</span
-          >
+          >{{ entry.offsetLabel }}:</span>
           <input
-            type="number"
             v-model.number="cmd.offset"
+            type="number"
             :min="0"
             :max="65535"
             :class="[CTRL, NUM]"
-          />
+          >
         </div>
         <button
           type="button"
@@ -169,11 +167,10 @@ const clampValue = (name: "x" | "y") => {
             <div class="flex items-center gap-1.5">
               <span
                 class="shrink-0 text-[10px] font-mono uppercase tracking-wide text-white/40"
-                >{{ col.meta.label }}:</span
-              >
+              >{{ col.meta.label }}:</span>
               <select
-                :class="[CTRL, 'w-28']"
                 v-model="col.src.type"
+                :class="[CTRL, 'w-28']"
                 @change="clampValue(col.name)"
               >
                 <option v-for="t in typesFor(col.meta)" :key="t" :value="t">
@@ -190,16 +187,20 @@ const clampValue = (name: "x" | "y") => {
                 {{ col.vlabel }}:
               </span>
               <select
-                :class="[CTRL, 'w-20']"
                 v-model="col.src.dv.kind"
+                :class="[CTRL, 'w-20']"
                 @change="clampValue(col.name)"
               >
-                <option value="number">Number</option>
-                <option value="buffer">Memory</option>
+                <option value="number">
+                  Number
+                </option>
+                <option value="buffer">
+                  Memory
+                </option>
               </select>
               <input
-                type="number"
                 v-model.number="col.src.dv.value"
+                type="number"
                 :min="0"
                 :max="col.max"
                 :class="[
@@ -208,7 +209,7 @@ const clampValue = (name: "x" | "y") => {
                   col.oob && 'border-red-500/60 text-red-300',
                 ]"
                 @change="clampValue(col.name)"
-              />
+              >
             </div>
           </div>
           <!-- Vertical divider -->

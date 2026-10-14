@@ -327,7 +327,9 @@ watch(
     >
       <!-- Row 1: identity, status, device read -->
       <div class="flex flex-wrap items-center gap-2">
-        <p class="font-mono text-sm text-white/60">Script Name</p>
+        <p class="font-mono text-sm text-white/60">
+          Script Name
+        </p>
         <InputText
           v-model="filename"
           class="w-48 font-mono text-sm"
@@ -377,8 +379,8 @@ watch(
           @click="toggleAddMenu"
         />
         <TieredMenu
-          class="text-sm"
           ref="addMenu"
+          class="text-sm"
           :model="addMenuItems"
           :popup="true"
         />
@@ -419,7 +421,9 @@ watch(
       v-if="wasmReady && !isValid"
       class="border border-white/10 rounded-md p-4 bg-red-500/10 text-xs font-mono text-red-300 space-y-1"
     >
-      <div class="pb-2">Issues Found:</div>
+      <div class="pb-2">
+        Issues Found:
+      </div>
       <p
         v-for="(msg, i) in ruleMessages"
         :key="i"
@@ -517,6 +521,6 @@ watch(
       accept=".nsl"
       class="hidden"
       @change="onImportFile"
-    />
+    >
   </div>
 </template>
