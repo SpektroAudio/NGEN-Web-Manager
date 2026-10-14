@@ -40,6 +40,7 @@ export default defineConfig([
     rules: {
       "no-undef": "off",
       "vue/max-attributes-per-line": "off",
+      "vue/multi-word-component-names": "off",
     },
   },
 ]);

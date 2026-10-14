@@ -25,7 +25,7 @@ type NslDeps = {
     nslReceived: { name: string; data: Uint8Array };
     receiveMode: "download" | "buffer";
   };
-  toast: { add: (msg: any) => void };
+  toast: { add: (msg: unknown) => void };
   folderNames: string[];
   sendMessage: (message: string) => Promise<void>;
   sendData: (data: Uint8Array) => Promise<void>;

@@ -321,9 +321,13 @@ export function blockDepths(
   let loop = 0;
   let cond = 0;
   return commands.map((c) => {
-    if (OPENERS.has(c.cmd)) c.cmd === "LoopSet" ? (loop += 1) : (cond += 1);
-    else if (c.cmd in CLOSER_FOR)
-      c.cmd === "LoopEnd" ? (loop -= 1) : (cond -= 1);
+    if (OPENERS.has(c.cmd)) {
+      if (c.cmd === "LoopSet") loop += 1;
+      else cond += 1;
+    } else if (c.cmd in CLOSER_FOR) {
+      if (c.cmd === "LoopEnd") loop -= 1;
+      else cond -= 1;
+    }
     return { loop: Math.max(0, loop), cond: Math.max(0, cond) };
   });
 }

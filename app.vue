@@ -256,7 +256,7 @@ const readData = async () => {
         await new Promise((r) => setTimeout(r, 20));
       }
     }
-  } catch (error) {
+  } catch {
     console.error("Error receiving data from serial port.");
   } finally {
     activeReader = null;
@@ -323,7 +323,7 @@ const uploadFile = (file_mode: number) => {
       // Convert file to a u8 buffer array
       file
         .arrayBuffer()
-        .then((content: { byteLength: any }) => {
+        .then((content) => {
           // Retrieve file info
           state.saveDialog = false;
           const file_size = content.byteLength;
@@ -450,7 +450,7 @@ const getVersion = async () => {
   console.log("Checking firmware version");
   await sendMessage("v\r\n");
   await new Promise((resolve) => {
-    var timeout = setTimeout(function () {
+    setTimeout(function () {
       state.firmwareVersion = state.receivedMessages.join("");
       state.compatibleFirmware =
         parseFloat(state.firmwareVersion) >= minFirmwareVersion;
@@ -461,11 +461,11 @@ const getVersion = async () => {
 };
 
 // Sends a message to the serial port, wait for a response and return the value
-const getValue = async (msg: string): Promise<any> => {
+const getValue = async (msg: string): Promise<string> => {
   await sendMessage(msg + "\r\n");
   clearReceivedBuffer();
-  let value = await new Promise((resolve) => {
-    let timeout = setTimeout(function () {
+  const value = await new Promise((resolve) => {
+    setTimeout(function () {
       let received_value = state.receivedMessages.join("");
       console.log("Received: " + received_value);
       clearReceivedBuffer();
@@ -477,6 +477,11 @@ const getValue = async (msg: string): Promise<any> => {
 };
 
 // Request file list
+type FolderEntry = {
+  folderNum: number;
+  fileCount: number;
+  files: string[];
+};
 const requestFiles = async () => {
   toast.add({
     summary: "Requesting files from NGEN hardware..",
@@ -487,16 +492,12 @@ const requestFiles = async () => {
   items.value = {};
   sendMessage("f\r\n");
   await new Promise((resolve) => {
-    var timeout = setTimeout(function () {
+    setTimeout(function () {
       const input_msg = state.receivedMessages.join("").split("\r\n");
       clearReceivedBuffer();
 
-      let folderData: any[] = [];
-      let currentFolder: {
-        fileCount: any;
-        files: any;
-        folderNum?: number;
-      } | null = null;
+      let folderData: FolderEntry[] = [];
+      let currentFolder: FolderEntry | null = null;
 
       let separator = state.compatibleFirmware ? " " : " - ";
       input_msg.forEach((line) => {
@@ -534,7 +535,7 @@ const requestFiles = async () => {
 };
 
 // Function to transform folderData into PriveVue Tree compatible items
-const transformToTreeItems = (folderData: any[]) => {
+const transformToTreeItems = (folderData: FolderEntry[]) => {
   return folderData.map((folder) => ({
     label: `${folderNames[folder.folderNum]} (${folder.files.length})`,
     key: `${folder.folderNum}`,
@@ -654,7 +655,7 @@ const {
   downloadFile,
 });
 
-const updateProjectData = async (data: any) => {
+const updateProjectData = async (data: typeof state.projectData) => {
   state.projectData = data;
 };
 
@@ -681,7 +682,7 @@ const deleteSelected = async () => {
   if (count > 0) {
     checked.value = [];
     console.log("Updating files");
-    await new Promise((resolve) => {
+    await new Promise(() => {
       setTimeout(() => {
         toast.add({
           summary: "Deleted " + count + " files",
@@ -1085,7 +1086,11 @@ const sendCommand = async (cmd: string) => {
           class="text-white/40 m-2"
         >
           - {{ key }} -
-          <div v-for="item in value" class="text-white/100 m-2">
+          <div
+            v-for="(item, index) in value"
+            :key="index"
+            class="text-white/100 m-2"
+          >
             {{ item }}
           </div>
         </div>
