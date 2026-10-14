@@ -6,8 +6,13 @@
     "build": "nuxt build",
     "build:wasm": "wasm-pack build wasm --target web --out-dir ../public/wasm/nsl_wasm",
     "dev": "npm run build:wasm && nuxt dev",
+    "fmt": "prettier --write .",
+    "fmt:check": "prettier --check .",
     "generate": "nuxt generate",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "preview": "nuxt preview",
+    "types": "nuxt typecheck",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
@@ -23,6 +28,12 @@
     "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
-    "@primevue/nuxt-module": "^4.3.4"
+    "@primevue/nuxt-module": "^4.3.4",
+    "@typescript-eslint/parser": "^8.71.2",
+    "eslint": "^10.12.0",
+    "eslint-plugin-vue": "^10.11.1",
+    "prettier": "^3.9.10",
+    "typescript-eslint": "^8.71.2",
+    "vue-eslint-parser": "^10.4.1"
   }
 }
