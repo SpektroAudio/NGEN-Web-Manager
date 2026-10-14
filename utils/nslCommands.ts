@@ -311,6 +311,23 @@ export function computeDepth(commands: Command[]): number[] {
   });
 }
 
+export const MAX_LOOP_DEPTH = 4;
+export const MAX_COND_DEPTH = 4;
+
+/// Check for loop / condition nesting
+export function blockDepths(
+  commands: Command[],
+): Array<{ loop: number; cond: number }> {
+  let loop = 0;
+  let cond = 0;
+  return commands.map((c) => {
+    if (OPENERS.has(c.cmd)) c.cmd === "LoopSet" ? (loop += 1) : (cond += 1);
+    else if (c.cmd in CLOSER_FOR)
+      c.cmd === "LoopEnd" ? (loop -= 1) : (cond -= 1);
+    return { loop: Math.max(0, loop), cond: Math.max(0, cond) };
+  });
+}
+
 /// Max value per type
 export function validationMessages(
   commands: Command[],
@@ -329,13 +346,30 @@ export function validationMessages(
     );
   }
 
-  // Check for open blocks
+  // Check for open blocks and nesting depth
   const stack: Array<{ kind: string; line: number }> = [];
+  let loopDepth = 0;
+  let condDepth = 0;
   commands.forEach((c, i) => {
     const line = i + 1;
     if (OPENERS.has(c.cmd)) {
+      if (c.cmd === "LoopSet") {
+        loopDepth += 1;
+        if (loopDepth > MAX_LOOP_DEPTH)
+          messages.push(
+            `LoopSet at line ${line} nests ${loopDepth} loops — max is ${MAX_LOOP_DEPTH}.`,
+          );
+      } else {
+        condDepth += 1;
+        if (condDepth > MAX_COND_DEPTH)
+          messages.push(
+            `${c.cmd} at line ${line} nests ${condDepth} conditions — max is ${MAX_COND_DEPTH}.`,
+          );
+      }
       stack.push({ kind: c.cmd === "LoopSet" ? "loop" : "condition", line });
     } else if (c.cmd in CLOSER_FOR) {
+      if (c.cmd === "LoopEnd") loopDepth = Math.max(0, loopDepth - 1);
+      else condDepth = Math.max(0, condDepth - 1);
       const expected = CLOSER_FOR[c.cmd] === "cond" ? "condition" : "loop";
       const top = stack[stack.length - 1];
       if (!top || top.kind !== expected) {
