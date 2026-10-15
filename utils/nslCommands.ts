@@ -16,6 +16,12 @@ export interface Command {
   offset?: number;
 }
 
+export interface NslExample {
+  name: string;
+  description?: string;
+  commands: Array<Omit<Command, "id">>;
+}
+
 export const DATA_SOURCE_TYPES = [
   "Constant",
   "Random",
@@ -274,14 +280,55 @@ export function starterScript(): Command[] {
   ];
 }
 
+/// One preview line for examples
+export interface ExamplePreviewLine {
+  n: number;
+  depth: number;
+  text: string;
+}
+
+/// Sources of one command as short signatures ("Constant(4)", "@12")
+function sourceSummaries(c: Omit<Command, "id">): string[] {
+  const parts: string[] = [];
+  (["x", "y"] as const).forEach((slot) => {
+    const s = c[slot];
+    if (s) parts.push(`${s.type}(${s.dv.value})`);
+  });
+  if (c.offset !== undefined) parts.push(`@${c.offset}`);
+  return parts;
+}
+
+/// Label + sources of one command ("Loop Set — Constant(4)")
+export function commandSummary(c: Omit<Command, "id">): string {
+  const label = CATALOG_BY_CMD[c.cmd]?.label ?? c.cmd;
+  const parts = sourceSummaries(c);
+  return parts.length ? `${label} — ${parts.join(", ")}` : label;
+}
+
+/// Preview lines for a whole script (long scripts scroll in the UI)
+export function examplePreview(
+  cmds: Array<Omit<Command, "id">>,
+): ExamplePreviewLine[] {
+  return computeDepth(cmds).map((depth, i) => ({
+    n: i + 1,
+    depth,
+    text: commandSummary(cmds[i]),
+  }));
+}
+
 /// Fresh id after decode / import (max existing id + 1)
 export function nextId(commands: Command[]): number {
   return commands.reduce((max, c) => Math.max(max, c.id), 0) + 1;
 }
 
 /// Byte length of one command in the encoded stream
-export function commandBytes(cmd: Command): number {
+export function commandBytes(cmd: Pick<Command, "cmd">): number {
   return CATALOG_BY_CMD[cmd.cmd]?.length ?? 0;
+}
+
+/// Encoded size of a script (4-byte NSL header + every command)
+export function scriptBytes(cmds: Array<Pick<Command, "cmd">>): number {
+  return 4 + cmds.reduce((n, c) => n + commandBytes(c), 0);
 }
 
 /// Commands that open a nested block
@@ -301,7 +348,7 @@ const CLOSER_FOR: Record<string, string> = {
 };
 
 /// Adjusts the indentation level based on closers / openers
-export function computeDepth(commands: Command[]): number[] {
+export function computeDepth(commands: Array<Pick<Command, "cmd">>): number[] {
   let level = 0;
   return commands.map((c) => {
     const depth = Math.max(0, level);

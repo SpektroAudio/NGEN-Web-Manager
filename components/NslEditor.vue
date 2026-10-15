@@ -17,7 +17,10 @@ import {
   commandBytes,
   computeDepth,
   validationMessages,
+  examplePreview,
+  scriptBytes,
   type Command,
+  type NslExample,
 } from "../utils/nslCommands";
 
 const props = defineProps<{
@@ -76,6 +79,7 @@ onMounted(async () => {
     setBaseline();
   }
   reencode();
+  loadExampleList();
 });
 
 // DTO conversion
@@ -117,6 +121,10 @@ const depths = computed(() => computeDepth(props.commands));
 
 // Hover highlight
 const hoverIndex = ref<number | null>(null);
+
+/// Index of the card being dragged (null when not dragging)
+const dragIndex = ref<number | null>(null);
+
 /// Byte range of each command in the encoded stream (4-byte NSL header first)
 const byteRanges = computed(() => {
   let off = 4;
@@ -236,6 +244,57 @@ const duplicateAt = (index: number) => {
   props.commands.splice(index + 1, 0, copy);
 };
 
+// Examples (public/nsl_examples.json)
+const exampleDialog = ref(false);
+const examples = ref<NslExample[]>([]);
+const selectedExample = ref(0);
+
+const loadExampleList = async () => {
+  try {
+    const file = await $fetch<{ examples?: NslExample[] }>(
+      "/nsl_examples.json",
+    );
+    examples.value = file.examples ?? [];
+  } catch {
+    toast.add({
+      summary: "Examples unavailable",
+      detail: "Could not load /nsl_examples.json.",
+      life: 3000,
+      severity: "error",
+    });
+  }
+};
+
+const activeExample = computed(
+  () => examples.value[selectedExample.value] ?? null,
+);
+const previewLines = computed(() =>
+  activeExample.value ? examplePreview(activeExample.value.commands) : [],
+);
+
+/// Opens the examples modal (list on the left, detail on the right)
+const openExampleDialog = () => {
+  if (selectedExample.value >= examples.value.length) selectedExample.value = 0;
+  exampleDialog.value = true;
+};
+
+const loadExample = (ex: NslExample) => {
+  exampleDialog.value = false;
+  requestReplace(() => {
+    props.commands.splice(
+      0,
+      props.commands.length,
+      ...ex.commands.map((c, i) => ({ id: i + 1, ...c })),
+    );
+    filename.value = `${ex.name}.nsl`;
+    setBaseline();
+  });
+};
+
+const loadActiveExample = () => {
+  if (activeExample.value) loadExample(activeExample.value);
+};
+
 // Import
 const importInput = ref<HTMLInputElement | null>(null);
 
@@ -327,9 +386,7 @@ watch(
     >
       <!-- Row 1: identity, status, device read -->
       <div class="flex flex-wrap items-center gap-2">
-        <p class="font-mono text-sm text-white/60">
-          Script Name
-        </p>
+        <p class="font-mono text-sm text-white/60">Script Name</p>
         <InputText
           v-model="filename"
           class="w-48 font-mono text-sm"
@@ -392,6 +449,118 @@ watch(
           @click="doInit"
         />
         <Button
+          label="Load Example"
+          icon="pi pi-book"
+          variant="outlined"
+          size="small"
+          :disabled="examples.length === 0"
+          @click="openExampleDialog"
+        />
+        <Dialog
+          v-model:visible="exampleDialog"
+          modal
+          header="NSL Examples"
+          class="w-[42rem]"
+        >
+          <div class="flex gap-4">
+            <!-- Example list -->
+            <div class="flex w-52 shrink-0 flex-col gap-1">
+              <p
+                class="m-0 text-[10px] font-mono uppercase tracking-wide text-white/40"
+              >
+                Examples
+              </p>
+              <div
+                class="flex max-h-[26rem] min-h-0 flex-col gap-1 overflow-y-auto pr-1"
+              >
+                <button
+                  v-for="(ex, i) in examples"
+                  :key="ex.name"
+                  type="button"
+                  :class="[
+                    'w-full rounded border px-2 py-1.5 text-left transition-colors',
+                    selectedExample === i
+                      ? 'border-white/30 bg-white/10'
+                      : 'border-transparent hover:border-white/15 hover:bg-white/5',
+                  ]"
+                  @click="selectedExample = i"
+                  @dblclick="loadExample(ex)"
+                >
+                  <span
+                    class="block truncate font-mono text-xs text-white/80"
+                    >{{ ex.name }}</span
+                  >
+                  <span class="block text-[10px] font-mono text-white/35">
+                    {{ ex.commands.length }} commands
+                  </span>
+                </button>
+              </div>
+            </div>
+            <!-- Selected example: name, description, command preview -->
+            <div class="flex min-w-0 flex-1 flex-col gap-2">
+              <div>
+                <p class="m-0 font-mono text-sm font-bold text-white/85">
+                  {{ activeExample?.name ?? "No example" }}
+                </p>
+                <p
+                  v-if="activeExample"
+                  class="m-0 mt-0.5 text-[11px] font-mono text-white/40"
+                >
+                  {{ activeExample.commands.length }} commands ·
+                  {{ scriptBytes(activeExample.commands) }} bytes
+                </p>
+              </div>
+              <div
+                class="max-h-24 min-h-0 overflow-y-auto rounded border border-white/10 bg-black/30 px-3 py-2"
+              >
+                <p class="m-0 text-xs font-thin text-white/60">
+                  {{ activeExample?.description || "No description." }}
+                </p>
+              </div>
+              <div
+                class="h-[19rem] min-h-0 overflow-y-auto rounded border border-white/10 bg-black/30 px-3 py-2"
+              >
+                <ul
+                  v-if="previewLines.length"
+                  class="m-0 p-0 list-none space-y-1"
+                >
+                  <li
+                    v-for="line in previewLines"
+                    :key="line.n"
+                    class="flex gap-2 font-mono text-[11px]"
+                    :style="{ paddingLeft: line.depth * 12 + 'px' }"
+                  >
+                    <span class="w-5 shrink-0 text-right text-white/30">{{
+                      line.n
+                    }}</span>
+                    <span class="min-w-0 flex-1 truncate text-white/70">{{
+                      line.text
+                    }}</span>
+                  </li>
+                </ul>
+                <p v-else class="m-0 text-xs font-thin font-mono text-white/40">
+                  No commands
+                </p>
+              </div>
+            </div>
+          </div>
+          <template #footer>
+            <Button
+              label="Cancel"
+              variant="text"
+              size="small"
+              @click="exampleDialog = false"
+            />
+            <Button
+              label="Load Example"
+              icon="pi pi-book"
+              size="small"
+              :disabled="!activeExample"
+              @click="loadActiveExample"
+            />
+          </template>
+        </Dialog>
+        <Button
           label="Import"
           icon="pi pi-file"
           variant="outlined"
@@ -421,9 +590,7 @@ watch(
       v-if="wasmReady && !isValid"
       class="border border-white/10 rounded-md p-4 bg-red-500/10 text-xs font-mono text-red-300 space-y-1"
     >
-      <div class="pb-2">
-        Issues Found:
-      </div>
+      <div class="pb-2">Issues Found:</div>
       <p
         v-for="(msg, i) in ruleMessages"
         :key="i"
@@ -448,12 +615,19 @@ watch(
         class="flex flex-1 min-h-0 flex-col border border-white/10 rounded-md p-4 bg-black/10"
       >
         <div class="min-h-0 w-full flex-1 overflow-y-auto">
-          <draggable :list="commands" item-key="id" handle=".drag-handle">
+          <draggable
+            :list="commands"
+            item-key="id"
+            handle=".drag-handle"
+            @start="dragIndex = $event.oldIndex"
+            @end="dragIndex = null"
+          >
             <template #item="{ element, index }">
               <NslCommandCard
                 :cmd="element"
                 :index="index"
                 :depth="depths[index]"
+                :dragging="dragIndex === index"
                 :description="steps[index] ?? ''"
                 :max-for="maxFor"
                 @remove="removeAt(index)"
@@ -521,6 +695,6 @@ watch(
       accept=".nsl"
       class="hidden"
       @change="onImportFile"
-    >
+    />
   </div>
 </template>

@@ -17,6 +17,8 @@ const props = defineProps<{
   description: string;
   /// Max per source type/kind (from the WASM engine)
   maxFor: (type: string, kind: string) => number;
+  /// True while this card is being dragged
+  dragging?: boolean;
 }>();
 
 const emit = defineEmits(["remove", "duplicate"]);
@@ -90,6 +92,7 @@ const clampValue = (name: "x" | "y") => {
   <div :style="{ paddingLeft: depth * 14 + 'px' }">
     <div
       class="group rounded border border-white/10 px-2 py-1 mb-2 bg-white/[0.03] hover:border-white/25 transition-colors"
+      :class="{ 'is-dragging': dragging }"
       :style="tintStyle"
     >
       <!-- Header row -->
@@ -111,7 +114,8 @@ const clampValue = (name: "x" | "y") => {
         </button>
         <span
           class="w-4 shrink-0 text-right text-[11px] font-mono text-white/30"
-        >{{ index + 1 }}</span>
+          >{{ index + 1 }}</span
+        >
         <span class="shrink-0 text-xs font-mono font-bold uppercase">{{
           entry?.label ?? cmd.cmd
         }}</span>
@@ -127,14 +131,15 @@ const clampValue = (name: "x" | "y") => {
         >
           <span
             class="text-[10px] font-mono uppercase tracking-wide text-white/40"
-          >{{ entry.offsetLabel }}:</span>
+            >{{ entry.offsetLabel }}:</span
+          >
           <input
             v-model.number="cmd.offset"
             type="number"
             :min="0"
             :max="65535"
             :class="[CTRL, NUM]"
-          >
+          />
         </div>
         <button
           type="button"
@@ -167,7 +172,8 @@ const clampValue = (name: "x" | "y") => {
             <div class="flex items-center gap-1.5">
               <span
                 class="shrink-0 text-[10px] font-mono uppercase tracking-wide text-white/40"
-              >{{ col.meta.label }}:</span>
+                >{{ col.meta.label }}:</span
+              >
               <select
                 v-model="col.src.type"
                 :class="[CTRL, 'w-28']"
@@ -191,12 +197,8 @@ const clampValue = (name: "x" | "y") => {
                 :class="[CTRL, 'w-20']"
                 @change="clampValue(col.name)"
               >
-                <option value="number">
-                  Number
-                </option>
-                <option value="buffer">
-                  Memory
-                </option>
+                <option value="number">Number</option>
+                <option value="buffer">Memory</option>
               </select>
               <input
                 v-model.number="col.src.dv.value"
@@ -209,7 +211,7 @@ const clampValue = (name: "x" | "y") => {
                   col.oob && 'border-red-500/60 text-red-300',
                 ]"
                 @change="clampValue(col.name)"
-              >
+              />
             </div>
           </div>
           <!-- Vertical divider -->
@@ -222,3 +224,19 @@ const clampValue = (name: "x" | "y") => {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Make cards slightly brighter while dragging */
+.is-dragging {
+  position: relative;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.is-dragging::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+}
+</style>
