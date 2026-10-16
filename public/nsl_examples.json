@@ -1,0 +1,298 @@
+{
+  "examples": [
+    {
+      "name": "init",
+      "description": "Initial script - One note at step 1",
+      "commands": [
+        {
+          "cmd": "Set",
+          "x": { "type": "StepPitch", "dv": { "kind": "number", "value": 0 } },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 36 } }
+        },
+        {
+          "cmd": "Set",
+          "x": {
+            "type": "StepVelocity",
+            "dv": { "kind": "number", "value": 0 }
+          },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 100 } }
+        },
+        {
+          "cmd": "Set",
+          "x": {
+            "type": "StepLength",
+            "dv": { "kind": "number", "value": 0 }
+          },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 1 } }
+        },
+        {
+          "cmd": "Set",
+          "x": {
+            "type": "StepDensity",
+            "dv": { "kind": "number", "value": 0 }
+          },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 0 } }
+        },
+        { "cmd": "End" }
+      ]
+    },
+    {
+      "name": "loop",
+      "description": "This example script demonstrates how to use loops to fill an entire sequence of 32 steps. In this example, Memory Buffer #0 is used as a counter that gets incremented in every loop to advnce the step index amd increase the pitch of every step by +1 semitone.",
+      "commands": [
+        {
+          "cmd": "Set",
+          "x": {
+            "type": "MemoryBuffer",
+            "dv": { "kind": "number", "value": 0 }
+          },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 0 } }
+        },
+        {
+          "cmd": "LoopSet",
+          "x": { "type": "Constant", "dv": { "kind": "number", "value": 32 } }
+        },
+        {
+          "cmd": "Set",
+          "x": { "type": "StepPitch", "dv": { "kind": "buffer", "value": 0 } },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 60 } }
+        },
+        {
+          "cmd": "Add",
+          "x": { "type": "StepPitch", "dv": { "kind": "buffer", "value": 0 } },
+          "y": { "type": "Constant", "dv": { "kind": "buffer", "value": 0 } }
+        },
+        {
+          "cmd": "Set",
+          "x": {
+            "type": "StepVelocity",
+            "dv": { "kind": "buffer", "value": 0 }
+          },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 100 } }
+        },
+        {
+          "cmd": "Set",
+          "x": { "type": "StepLength", "dv": { "kind": "buffer", "value": 0 } },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 1 } }
+        },
+        {
+          "cmd": "Set",
+          "x": {
+            "type": "StepDensity",
+            "dv": { "kind": "buffer", "value": 0 }
+          },
+          "y": { "type": "Random", "dv": { "kind": "number", "value": 48 } }
+        },
+        {
+          "cmd": "Add",
+          "x": {
+            "type": "MemoryBuffer",
+            "dv": { "kind": "number", "value": 0 }
+          },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 1 } }
+        },
+        { "cmd": "LoopEnd" },
+        { "cmd": "End" }
+      ]
+    },
+    {
+      "name": "randnote",
+      "description": "Similar to the loop example but we randomize the pitch of every step in the loop.",
+      "commands": [
+        {
+          "cmd": "Set",
+          "x": {
+            "type": "MemoryBuffer",
+            "dv": { "kind": "number", "value": 0 }
+          },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 0 } }
+        },
+        {
+          "cmd": "LoopSet",
+          "x": { "type": "Constant", "dv": { "kind": "number", "value": 32 } }
+        },
+        {
+          "cmd": "Set",
+          "x": { "type": "StepPitch", "dv": { "kind": "buffer", "value": 0 } },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 60 } }
+        },
+        {
+          "cmd": "Add",
+          "x": { "type": "StepPitch", "dv": { "kind": "buffer", "value": 0 } },
+          "y": { "type": "Random", "dv": { "kind": "number", "value": 24 } }
+        },
+        {
+          "cmd": "Set",
+          "x": {
+            "type": "StepVelocity",
+            "dv": { "kind": "buffer", "value": 0 }
+          },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 100 } }
+        },
+        {
+          "cmd": "Set",
+          "x": { "type": "StepLength", "dv": { "kind": "buffer", "value": 0 } },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 1 } }
+        },
+        {
+          "cmd": "Set",
+          "x": {
+            "type": "StepDensity",
+            "dv": { "kind": "buffer", "value": 0 }
+          },
+          "y": { "type": "Random", "dv": { "kind": "number", "value": 48 } }
+        },
+        {
+          "cmd": "Add",
+          "x": {
+            "type": "MemoryBuffer",
+            "dv": { "kind": "number", "value": 0 }
+          },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 1 } }
+        },
+        { "cmd": "LoopEnd" },
+        { "cmd": "End" }
+      ]
+    },
+    {
+      "name": "walk_scl",
+      "description": "This example uses the Scale value type to retrieve pitches based on the active scale / key.",
+      "commands": [
+        {
+          "cmd": "Set",
+          "x": {
+            "type": "MemoryBuffer",
+            "dv": { "kind": "number", "value": 0 }
+          },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 0 } }
+        },
+        {
+          "cmd": "Set",
+          "x": {
+            "type": "MemoryBuffer",
+            "dv": { "kind": "number", "value": 1 }
+          },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 0 } }
+        },
+        {
+          "cmd": "LoopSet",
+          "x": { "type": "Constant", "dv": { "kind": "number", "value": 8 } }
+        },
+        {
+          "cmd": "Set",
+          "x": { "type": "StepPitch", "dv": { "kind": "buffer", "value": 0 } },
+          "y": { "type": "Scale", "dv": { "kind": "buffer", "value": 1 } }
+        },
+        {
+          "cmd": "Add",
+          "x": { "type": "StepPitch", "dv": { "kind": "buffer", "value": 0 } },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 48 } }
+        },
+        {
+          "cmd": "Set",
+          "x": {
+            "type": "StepVelocity",
+            "dv": { "kind": "buffer", "value": 0 }
+          },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 100 } }
+        },
+        {
+          "cmd": "Set",
+          "x": { "type": "StepLength", "dv": { "kind": "buffer", "value": 0 } },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 1 } }
+        },
+        {
+          "cmd": "Set",
+          "x": {
+            "type": "StepDensity",
+            "dv": { "kind": "buffer", "value": 0 }
+          },
+          "y": { "type": "Random", "dv": { "kind": "number", "value": 48 } }
+        },
+        {
+          "cmd": "Add",
+          "x": {
+            "type": "MemoryBuffer",
+            "dv": { "kind": "number", "value": 1 }
+          },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 1 } }
+        },
+        {
+          "cmd": "Add",
+          "x": {
+            "type": "MemoryBuffer",
+            "dv": { "kind": "number", "value": 0 }
+          },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 1 } }
+        },
+        { "cmd": "LoopEnd" },
+        { "cmd": "End" }
+      ]
+    },
+    {
+      "name": "euclid",
+      "description": "Generates a rising sequence based on an euclidean sequence. In this example, we only set up the notes generates by the euclidean sequencer (velocity > 0).",
+      "commands": [
+        {
+          "cmd": "GenerateEuclidean",
+          "x": { "type": "Random", "dv": { "kind": "number", "value": 32 } },
+          "y": { "type": "Random", "dv": { "kind": "number", "value": 8 } }
+        },
+        {
+          "cmd": "Set",
+          "x": {
+            "type": "MemoryBuffer",
+            "dv": { "kind": "number", "value": 0 }
+          },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 0 } }
+        },
+        {
+          "cmd": "LoopSet",
+          "x": { "type": "Constant", "dv": { "kind": "number", "value": 32 } }
+        },
+        {
+          "cmd": "CondGT",
+          "x": {
+            "type": "StepVelocity",
+            "dv": { "kind": "buffer", "value": 0 }
+          },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 0 } }
+        },
+        {
+          "cmd": "Set",
+          "x": { "type": "StepPitch", "dv": { "kind": "buffer", "value": 0 } },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 60 } }
+        },
+        {
+          "cmd": "Add",
+          "x": { "type": "StepPitch", "dv": { "kind": "buffer", "value": 0 } },
+          "y": { "type": "Constant", "dv": { "kind": "buffer", "value": 0 } }
+        },
+        {
+          "cmd": "Set",
+          "x": { "type": "StepLength", "dv": { "kind": "buffer", "value": 0 } },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 1 } }
+        },
+        {
+          "cmd": "Set",
+          "x": {
+            "type": "StepDensity",
+            "dv": { "kind": "buffer", "value": 0 }
+          },
+          "y": { "type": "Random", "dv": { "kind": "number", "value": 48 } }
+        },
+        { "cmd": "CondEnd" },
+        {
+          "cmd": "Add",
+          "x": {
+            "type": "MemoryBuffer",
+            "dv": { "kind": "number", "value": 0 }
+          },
+          "y": { "type": "Constant", "dv": { "kind": "number", "value": 1 } }
+        },
+        { "cmd": "LoopEnd" },
+        { "cmd": "End" }
+      ]
+    }
+  ]
+}
