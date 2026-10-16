@@ -6,30 +6,31 @@ This project provides a simple, browser-based interface to manage files on an NG
 
 ![](public/img/ManagerScreenshot.png)
 
-### 🚀 Try It Live
+### Try It Live
 
 The hosted version is available at: **[ngen-manager.spektroaudio.com](https://ngen-manager.spektroaudio.com)**
 
 ***
 
 
-### ✨ Features
+### Features
 
 * **Direct Connection:** Connect to an NGEN device right from the browser. No drivers required!
 * **File Management:** Browse, upload, and download files between a computer and the NGEN's internal memory or microSD card.
 * **Organize Projects:** Easily delete projects, DrumGen templates, NSL scripts, and MIDI files from the device.
 * **Device Info:** Quickly check the NGEN's hardware and firmware details.
 * **Get Started Fast:** Load example projects directly into an NGEN's memory.
+* **NSL Editor:** Create, edit, and validate NSL scripts in the browser, then send them to or load them from the device.
 
 
-### 📘 NGEN Resources
+### NGEN Resources
 
 - [NGEN User Manual](https://ngen.spektroaudio.com)
 
 - [NGEN Resources Repository](https://github.com/spektroaudio/NGEN-Resources)
 
 
-### ✅ Requirements
+### Requirements
 
 To use the web manager, the following are required:
 
@@ -37,11 +38,11 @@ To use the web manager, the following are required:
 * A browser that supports the Web Serial API (such as **Google Chrome** or **Microsoft Edge**).
 * Linux Users: add your username to the **dialout** group (```sudo usermod -a -G dialout USERNAME```)
 
-### 🔧 How It Works
+### How It Works
 
 This is a [Nuxt.js](https://nuxtjs.org/) application that uses [PrimeVue](https://primevue.org/) for its user interface. It communicates with the NGEN hardware by sending and receiving serial commands directly through the browser. All file operations are handled using NGEN's native command set.
 
-### 💻 Build Instructions
+### Build Instructions
 
 
 **1. Clone the Repository**
@@ -66,7 +67,11 @@ npm run dev
 
 Once it's running, the application will be available at `http://localhost:3000`.
 
+> **Note:** The NSL Editor runs on a [WASM](https://webassembly.org/) build of the [`ngen_nsl`](https://github.com/SpektroAudio/ngen_nsl) Rust library. The [Rust toolchain](https://rustup.rs/) and [`wasm-pack`](https://rustwasm.github.io/wasm-pack/installer/) are required to modify and compile the `wasm` code.
+>
+> After rebuilding, delete the `.gitignore` file that `wasm-pack` regenerates inside `public/wasm/nsl_wasm/` so the artifacts stay tracked by git.
+
 ---
 
-Spektro Audio  
+Spektro Audio
 [spektroaudio.com](https://spektroaudio.com)
