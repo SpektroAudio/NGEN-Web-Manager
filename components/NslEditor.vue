@@ -19,6 +19,10 @@ import {
   validationMessages,
   examplePreview,
   scriptBytes,
+  stemOf,
+  sanitizeStem,
+  nslFileName,
+  NSL_STEM_MAX,
   type Command,
   type NslExample,
 } from "../utils/nslCommands";
@@ -45,6 +49,26 @@ const filename = computed({
   get: () => props.filename,
   set: (v: string) => emit("update:filename", v),
 });
+
+// Name field edits stem only
+const nameDraft = ref(stemOf(props.filename));
+const stemError = computed(() => {
+  const clean = sanitizeStem(nameDraft.value);
+  return !clean || clean !== nameDraft.value;
+});
+
+watch(
+  () => props.filename,
+  (v) => {
+    nameDraft.value = stemOf(v);
+  },
+);
+
+/// Fix name on enter / changing focus
+const commitName = () => {
+  nameDraft.value = sanitizeStem(nameDraft.value);
+  filename.value = nslFileName(nameDraft.value);
+};
 
 // WASM (lazy init)
 type WasmApi = {
@@ -113,9 +137,22 @@ const wasmValid = ref(false);
 const maxFor = (type: string, kind: string): number =>
   wasm?.data_source_max(type, kind) ?? 127;
 
+// Treat name issue separately as it's not handled by wasm
 const ruleMessages = computed(() => validationMessages(props.commands, maxFor));
+const nameIssue = computed(() =>
+  stemError.value
+    ? `Script name must be at most ${NSL_STEM_MAX} characters and only contain valid characters (A-Z, 0-9, _).`
+    : "",
+);
+
+// Combine issues from rules / wasm with name issue for the issue section
+const issues = computed(() =>
+  nameIssue.value
+    ? [...ruleMessages.value, nameIssue.value]
+    : ruleMessages.value,
+);
 const isValid = computed(
-  () => wasmReady.value && wasmValid.value && ruleMessages.value.length === 0,
+  () => wasmReady.value && wasmValid.value && issues.value.length === 0,
 );
 const depths = computed(() => computeDepth(props.commands));
 
@@ -286,7 +323,7 @@ const loadExample = (ex: NslExample) => {
       props.commands.length,
       ...ex.commands.map((c, i) => ({ id: i + 1, ...c })),
     );
-    filename.value = `${ex.name}.nsl`;
+    filename.value = nslFileName(ex.name);
     setBaseline();
   });
 };
@@ -314,7 +351,10 @@ const onImportFile = async (e: Event) => {
     });
     return;
   }
-  requestReplace(() => applyDecoded(json));
+  requestReplace(() => {
+    applyDecoded(json);
+    filename.value = nslFileName(file.name);
+  });
 };
 
 /// Replaces the list with decoded commands (fresh ids) and resets the baseline
@@ -324,6 +364,7 @@ const applyDecoded = (json: string) => {
 };
 
 const doExport = () => {
+  commitName();
   const b = encodeNow();
   if (!b) return;
   const blob = new Blob([new Uint8Array(b)], {
@@ -343,6 +384,7 @@ const doExport = () => {
 // Send to NGEN (upload mode 4)
 const doSend = () => {
   if (!props.isConnected || !isValid.value) return;
+  commitName();
   const b = encodeNow();
   if (!b) return;
   emit("send-to-ngen", { filename: filename.value, bytes: new Uint8Array(b) });
@@ -372,7 +414,7 @@ watch(
     }
     requestReplace(() => {
       applyDecoded(json);
-      filename.value = recv.name; // Replace script name with existing name
+      filename.value = nslFileName(recv.name);
     });
   },
 );
@@ -388,10 +430,14 @@ watch(
       <div class="flex flex-wrap items-center gap-2">
         <p class="font-mono text-sm text-white/60">Script Name</p>
         <InputText
-          v-model="filename"
-          class="w-48 font-mono text-sm"
-          placeholder="script_1.nsl"
+          v-model="nameDraft"
+          :maxlength="NSL_STEM_MAX"
+          class="w-40 font-mono text-sm"
+          placeholder="script_1"
+          @blur="commitName"
+          @keydown.enter="commitName"
         />
+        <span class="font-mono text-sm text-white/50">.nsl</span>
         <span
           v-if="!wasmReady"
           class="flex items-center gap-1.5 rounded border border-white/10 bg-black/20 px-2 py-1 text-xs font-mono text-white/50"
@@ -410,8 +456,8 @@ watch(
         >
           <span class="pi pi-exclamation-triangle" />
           {{
-            ruleMessages.length
-              ? `${ruleMessages.length} issue${ruleMessages.length === 1 ? "" : "s"}`
+            issues.length
+              ? `${issues.length} issue${issues.length === 1 ? "" : "s"}`
               : "Invalid script"
           }}
         </span>
@@ -572,6 +618,7 @@ watch(
           icon="pi pi-download"
           variant="outlined"
           size="small"
+          :disabled="stemError"
           @click="doExport"
         />
         <div class="flex-1" />
@@ -579,7 +626,7 @@ watch(
           label="Send to NGEN"
           icon="pi pi-send"
           size="small"
-          :disabled="!isConnected || !isValid"
+          :disabled="!isConnected || !isValid || stemError"
           @click="doSend"
         />
       </div>
@@ -592,14 +639,14 @@ watch(
     >
       <div class="pb-2">Issues Found:</div>
       <p
-        v-for="(msg, i) in ruleMessages"
+        v-for="(msg, i) in issues"
         :key="i"
         class="m-0 flex items-center gap-2"
       >
         <span class="pi pi-exclamation-triangle" /> {{ msg }}
       </p>
       <p
-        v-if="!wasmValid && ruleMessages.length === 0"
+        v-if="!wasmValid && issues.length === 0"
         class="m-0 flex items-center gap-2"
       >
         <span class="pi pi-exclamation-triangle" /> Script failed binary

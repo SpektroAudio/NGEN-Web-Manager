@@ -331,6 +331,25 @@ export function scriptBytes(cmds: Array<Pick<Command, "cmd">>): number {
   return 4 + cmds.reduce((n, c) => n + commandBytes(c), 0);
 }
 
+/// NGEN file names (8 characters / fixed .nsl ext)
+export const NSL_STEM_MAX = 8;
+export const NSL_EXT = ".nsl";
+const ILLEGAL_STEM_CHARS = /[^A-Za-z0-9_]/g;
+
+export function stemOf(name: string): string {
+  return name.toLowerCase().endsWith(NSL_EXT)
+    ? name.slice(0, -NSL_EXT.length)
+    : name;
+}
+
+export function sanitizeStem(raw: string): string {
+  return stemOf(raw).replace(ILLEGAL_STEM_CHARS, "_").slice(0, NSL_STEM_MAX);
+}
+
+export function nslFileName(stem: string): string {
+  return `${sanitizeStem(stem)}${NSL_EXT}`;
+}
+
 /// Commands that open a nested block
 const OPENERS = new Set([
   "LoopSet",

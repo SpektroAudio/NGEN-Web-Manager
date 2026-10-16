@@ -1,5 +1,9 @@
 import { ref, computed } from "vue";
-import type { Command } from "../utils/nslCommands";
+import {
+  nslFileName,
+  sanitizeStem,
+  type Command,
+} from "../utils/nslCommands";
 
 /// Build the serial message for a file upload
 export const buildUploadMessage = (
@@ -80,22 +84,33 @@ export const useNslEditor = ({
       return;
     }
 
+    const name = nslFileName(filename);
+    if (!sanitizeStem(filename)) {
+      toast.add({
+        summary: "Invalid script name",
+        detail: "Use up to 8 letters, numbers or underscores.",
+        life: 5000,
+        severity: "error",
+      });
+      return;
+    }
+
     console.log("NSL script size (bytes):", bytes.length);
     try {
       await sendMessage("R\r\n");
       state.uploading = true;
       await new Promise((r) => setTimeout(r, 1000));
-      await sendData(new Uint8Array(buildUploadMessage(4, filename, bytes)));
-      console.log("NSL script sent: " + filename);
+      await sendData(new Uint8Array(buildUploadMessage(4, name, bytes)));
+      console.log("NSL script sent: " + name);
       toast.add({
-        summary: "Script sent to NGEN: " + filename,
+        summary: "Script sent to NGEN: " + name,
         life: 3000,
         severity: "success",
       });
     } catch (error) {
       console.error("Error sending NSL script:", error);
       toast.add({
-        summary: "Error sending NSL script: " + filename,
+        summary: "Error sending NSL script: " + name,
         life: 5000,
         severity: "error",
       });
