@@ -25,6 +25,7 @@ import {
   NSL_STEM_MAX,
   type Command,
   type NslExample,
+  type WasmValidation,
 } from "../utils/nslCommands";
 
 const props = defineProps<{
@@ -74,9 +75,10 @@ const commitName = () => {
 type WasmApi = {
   decode: (bytes: Uint8Array | number[]) => string | undefined;
   encode: (json: string) => Uint8Array | undefined;
-  validate: (json: string) => boolean;
+  validate: (json: string) => string;
   command_description: (json: string) => string | undefined;
   data_source_max: (type: string, kind: string) => number | undefined;
+  data_source_dest_max: (type: string) => number | undefined;
 };
 
 const wasmReady = ref(false);
@@ -95,6 +97,7 @@ onMounted(async () => {
     validate: mod.validate,
     command_description: mod.command_description,
     data_source_max: mod.data_source_max,
+    data_source_dest_max: mod.data_source_dest_max,
   };
   wasmReady.value = true;
   // Start with init preset
@@ -131,14 +134,17 @@ const fromDto = (dtos: Array<Record<string, any>>): Command[] =>
 // Reencode loop
 const bytes = ref<number[]>([]);
 const steps = ref<string[]>([]);
-const wasmValid = ref(false);
+const wasmResult = ref<WasmValidation | null>(null);
 
 /// max per source type/kind (from the WASM engine, 127 before ready)
 const maxFor = (type: string, kind: string): number =>
   wasm?.data_source_max(type, kind) ?? 127;
 
+/// max value per destination type
+const destMaxFor = (type: string): number =>
+  wasm?.data_source_dest_max(type) ?? 0;
+
 // Treat name issue separately as it's not handled by wasm
-const ruleMessages = computed(() => validationMessages(props.commands, maxFor));
 const nameIssue = computed(() =>
   stemError.value
     ? `Script name must be at most ${NSL_STEM_MAX} characters and only contain valid characters (A-Z, 0-9, _).`
@@ -146,13 +152,20 @@ const nameIssue = computed(() =>
 );
 
 // Combine issues from rules / wasm with name issue for the issue section
-const issues = computed(() =>
-  nameIssue.value
-    ? [...ruleMessages.value, nameIssue.value]
-    : ruleMessages.value,
-);
+const issues = computed(() => {
+  const msgs = validationMessages(
+    props.commands,
+    wasmResult.value,
+    maxFor,
+    destMaxFor,
+  );
+  return nameIssue.value ? [...msgs, nameIssue.value] : msgs;
+});
 const isValid = computed(
-  () => wasmReady.value && wasmValid.value && issues.value.length === 0,
+  () =>
+    wasmReady.value &&
+    (wasmResult.value?.valid ?? false) &&
+    issues.value.length === 0,
 );
 const depths = computed(() => computeDepth(props.commands));
 
@@ -206,7 +219,11 @@ const reencode = () => {
   steps.value = props.commands.map(
     (c) => wasm!.command_description(JSON.stringify(toDto(c))) ?? "",
   );
-  wasmValid.value = wasm.validate(json);
+  try {
+    wasmResult.value = JSON.parse(wasm.validate(json)) as WasmValidation;
+  } catch {
+    wasmResult.value = { valid: false, error: { kind: "InvalidJson", pos: 0 } };
+  }
 };
 
 // Dirty check + replace confirm
@@ -646,7 +663,7 @@ watch(
         <span class="pi pi-exclamation-triangle" /> {{ msg }}
       </p>
       <p
-        v-if="!wasmValid && issues.length === 0"
+        v-if="!wasmResult?.valid && issues.length === 0"
         class="m-0 flex items-center gap-2"
       >
         <span class="pi pi-exclamation-triangle" /> Script failed binary

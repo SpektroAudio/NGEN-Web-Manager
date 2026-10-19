@@ -1,4 +1,4 @@
-/// NSL command catalog + pure-JS validation (no WASM needed).
+/// NSL command catalog + TS-only validation rules (checks come from WASM).
 
 export interface DataValue {
   kind: "number" | "buffer";
@@ -43,6 +43,7 @@ export const DESTINATION_TYPES = [
   "StepLength",
   "StepDensity",
   "MemoryBuffer",
+  "Params",
 ] as const;
 
 /// Per-type value labels
@@ -305,7 +306,7 @@ export function commandSummary(c: Omit<Command, "id">): string {
   return parts.length ? `${label} — ${parts.join(", ")}` : label;
 }
 
-/// Preview lines for a whole script (long scripts scroll in the UI)
+/// Preview lines for a whole script
 export function examplePreview(
   cmds: Array<Omit<Command, "id">>,
 ): ExamplePreviewLine[] {
@@ -380,96 +381,66 @@ export function computeDepth(commands: Array<Pick<Command, "cmd">>): number[] {
 export const MAX_LOOP_DEPTH = 4;
 export const MAX_COND_DEPTH = 4;
 
-/// Check for loop / condition nesting
-export function blockDepths(
-  commands: Command[],
-): Array<{ loop: number; cond: number }> {
-  let loop = 0;
-  let cond = 0;
-  return commands.map((c) => {
-    if (OPENERS.has(c.cmd)) {
-      if (c.cmd === "LoopSet") loop += 1;
-      else cond += 1;
-    } else if (c.cmd in CLOSER_FOR) {
-      if (c.cmd === "LoopEnd") loop -= 1;
-      else cond -= 1;
-    }
-    return { loop: Math.max(0, loop), cond: Math.max(0, cond) };
-  });
+/// Engine validation result from WASM validate()
+export interface WasmValidation {
+  valid: boolean;
+  error?: { kind: string; pos: number };
 }
 
-/// Max value per type
-export function validationMessages(
-  commands: Command[],
-  maxFor?: (type: string, kind: string) => number,
-): string[] {
-  const messages: string[] = [];
+/// Human text per engine error kind
+const ERROR_TEXT: Record<string, string> = {
+  BadJump: "jump target is not a command start",
+  LoopOverflow: `loop nesting deeper than max depth (${MAX_LOOP_DEPTH})`,
+  CondOverflow: `condition nesting deeper than max depth (${MAX_COND_DEPTH})`,
+  InvalidProgram: "invalid program structure",
+  Watchdog: "instruction limit reached",
+};
 
+/// Maps a program byte offset (after the header) to a 1-based command line
+export function lineForOffset(commands: Command[], pos: number): number | null {
+  let off = 0;
+  for (let i = 0; i < commands.length; i++) {
+    const len = commandBytes(commands[i]);
+    if (pos >= off && pos < off + len) return i + 1;
+    off += len;
+  }
+  // Offset past the end (unclosed block) points at the last command
+  return commands.length > 0 ? commands.length : null;
+}
+
+/// TS-only rules the engine does not check
+export function ruleMessages(commands: Command[]): string[] {
+  const messages: string[] = [];
   if (commands.length === 0) {
     return ["Script has no commands — add an End command or use Init."];
   }
-
   // Last command must be End
   if (commands[commands.length - 1].cmd !== "End") {
     messages.push(
       `Last command is ${commands[commands.length - 1].cmd} — script must end with End.`,
     );
   }
+  return messages;
+}
 
-  // Check for open blocks and nesting depth
-  const stack: Array<{ kind: string; line: number }> = [];
-  let loopDepth = 0;
-  let condDepth = 0;
-  commands.forEach((c, i) => {
-    const line = i + 1;
-    if (OPENERS.has(c.cmd)) {
-      if (c.cmd === "LoopSet") {
-        loopDepth += 1;
-        if (loopDepth > MAX_LOOP_DEPTH)
-          messages.push(
-            `LoopSet at line ${line} nests ${loopDepth} loops — max is ${MAX_LOOP_DEPTH}.`,
-          );
-      } else {
-        condDepth += 1;
-        if (condDepth > MAX_COND_DEPTH)
-          messages.push(
-            `${c.cmd} at line ${line} nests ${condDepth} conditions — max is ${MAX_COND_DEPTH}.`,
-          );
-      }
-      stack.push({ kind: c.cmd === "LoopSet" ? "loop" : "condition", line });
-    } else if (c.cmd in CLOSER_FOR) {
-      if (c.cmd === "LoopEnd") loopDepth = Math.max(0, loopDepth - 1);
-      else condDepth = Math.max(0, condDepth - 1);
-      const expected = CLOSER_FOR[c.cmd] === "cond" ? "condition" : "loop";
-      const top = stack[stack.length - 1];
-      if (!top || top.kind !== expected) {
-        messages.push(`Unmatched ${c.cmd} (command #${line}).`);
-      } else {
-        stack.pop();
-      }
-    }
-  });
-  for (const open of stack) {
-    const what = open.kind === "loop" ? "Loop" : "Condition";
-    messages.push(`${what} opened at line ${open.line} is not closed.`);
+/// Combined issues: TS-only rules + engine error + value ranges
+export function validationMessages(
+  commands: Command[],
+  wasm?: WasmValidation | null,
+  maxFor?: (type: string, kind: string) => number,
+  destMaxFor?: (type: string) => number,
+): string[] {
+  const messages = ruleMessages(commands);
+
+  // Engine error (first one reported), mapped to a command line
+  if (wasm && !wasm.valid && wasm.error) {
+    const what = ERROR_TEXT[wasm.error.kind] ?? wasm.error.kind;
+    const msg = what.charAt(0).toUpperCase() + what.slice(1);
+    const line = lineForOffset(commands, wasm.error.pos);
+    messages.push(line ? `${msg} (command #${line})` : msg);
   }
 
-  // Check Jump (must end at valid index)
-  const starts = new Set<number>();
-  let offset = 0;
-  for (const c of commands) {
-    starts.add(offset);
-    offset += commandBytes(c);
-  }
-  commands.forEach((c, i) => {
-    if (c.cmd === "Jump" && !starts.has(c.offset ?? -1)) {
-      messages.push(
-        `Jump at line ${i + 1} targets byte offset ${c.offset ?? "?"}, which is not a command start.`,
-      );
-    }
-  });
-
-  // Per-command value ranges (each source clipped to its type/kind max)
+  // Check value ranges
   if (maxFor) {
     commands.forEach((c, i) => {
       const entry = CATALOG_BY_CMD[c.cmd];
@@ -484,6 +455,18 @@ export function validationMessages(
           );
         }
       });
+    });
+  }
+
+  if (destMaxFor) {
+    commands.forEach((c, i) => {
+      if (c.cmd !== "Set" || !c.x || !c.y || c.y.dv.kind !== "number") return;
+      const max = destMaxFor(c.x.type);
+      if (max > 0 && c.y.dv.value > max) {
+        messages.push(
+          `Line ${i + 1} (Set): value ${c.y.dv.value} will be clipped to ${max} — max for ${c.x.type} is ${max}.`,
+        );
+      }
     });
   }
 

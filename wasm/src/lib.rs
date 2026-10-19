@@ -146,6 +146,21 @@ fn cmd_to_dto(cmd: &Commands) -> DtoCommand {
     }
 }
 
+/// Error payload reported by the engine (kind + byte offset after the header)
+#[derive(Serialize)]
+struct DtoError {
+    kind: String,
+    pos: u16,
+}
+
+/// Result of a script validation
+#[derive(Serialize)]
+struct ValidationResult {
+    valid: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<DtoError>,
+}
+
 // JSON to NSL Script
 fn script_from_json(commands_json: &str) -> Option<NSLScript> {
     let dtos: Vec<DtoCommand> = serde_json::from_str(commands_json).ok()?;
@@ -168,14 +183,35 @@ pub fn decode(bytes: &[u8]) -> Option<String> {
 #[wasm_bindgen]
 pub fn encode(commands_json: &str) -> Option<Vec<u8>> {
     let mut script = script_from_json(commands_json)?;
-    Some(script.code())
+    script.code().ok()
 }
 
+/// Validates a script and returns a JSON result
 #[wasm_bindgen]
-pub fn validate(commands_json: &str) -> bool {
-    script_from_json(commands_json)
-        .map(|script| script.validate())
-        .unwrap_or(false)
+pub fn validate(commands_json: &str) -> String {
+    let result = match script_from_json(commands_json) {
+        None => ValidationResult {
+            valid: false,
+            error: Some(DtoError {
+                kind: "InvalidJson".to_string(),
+                pos: 0,
+            }),
+        },
+        Some(script) => match script.validate() {
+            Ok(()) => ValidationResult {
+                valid: true,
+                error: None,
+            },
+            Err(e) => ValidationResult {
+                valid: false,
+                error: Some(DtoError {
+                    kind: format!("{:?}", e.kind),
+                    pos: e.pos,
+                }),
+            },
+        },
+    };
+    serde_json::to_string(&result).unwrap_or_else(|_| r#"{"valid":false}"#.to_string())
 }
 
 #[wasm_bindgen]
@@ -200,4 +236,15 @@ pub fn data_source_max(type_name: &str, kind: &str) -> Option<u8> {
     let ds = dto_to_ds(&dto);
     let kind_cap: u8 = if dto.kind == "buffer" { 31 } else { 127 };
     Some(ds.max().min(kind_cap))
+}
+
+/// Maximum value per destination type
+#[wasm_bindgen]
+pub fn data_source_dest_max(type_name: &str) -> Option<u8> {
+    let dto = DtoDataSource {
+        t: type_name.to_string(),
+        kind: "number".to_string(),
+        value: 0,
+    };
+    Some(dto_to_ds(&dto).dest_max())
 }
