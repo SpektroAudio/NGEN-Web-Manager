@@ -104,8 +104,6 @@ const connect = async () => {
   // Prevent double connect
   if (state.isConnected) return;
   try {
-    // state.port = await navigator.serial.requestPort();
-    // await state.port.open({ baudRate: 9600 });
     const portRequest = navigator.serial.requestPort();
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error("Port selection timeout")), 10000),
@@ -196,7 +194,6 @@ const hasFileSelected = () => {
 // Returns a dictionary containing the folder name and files selected
 const selectedFiles = () => {
   var files = {};
-  // console.log(items.value);
   for (let key in checked.value) {
     if (checked.value[key]["checked"] == true && key.includes("_")) {
       var file_info = key.split("_");
@@ -852,14 +849,12 @@ const sendCommand = async (cmd: string) => {
         class="flex-auto border items-center justify-center border-white/10 rounded-md p-8 w-full space-y-4 h-[460px]"
       >
         <div class="flex items-center">
-          <h2 class="text-white/80">
-            FILE MANAGER
-          </h2>
+          <h2 class="text-white/80">FILE MANAGER</h2>
           <SelectButton
             v-if="
               state.isConnected &&
-                state.compatibleFirmware &&
-                state.storageLocation < 2
+              state.compatibleFirmware &&
+              state.storageLocation < 2
             "
             v-model="state.storageLocation"
             :disabled="state.waiting"
@@ -931,17 +926,14 @@ const sendCommand = async (cmd: string) => {
           :class="state.compatibleFirmware ? 'text-green-400' : 'text-white/20'"
         >
           Device Firmware Version: {{ state.firmwareVersion }}
-          <span
-            v-if="state.compatibleFirmware"
-            class="pi pi-check-circle"
-          />
+          <span v-if="state.compatibleFirmware" class="pi pi-check-circle" />
         </div>
         <div
           v-if="!state.compatibleFirmware"
           class="flex flex-col space-y-4 items-center text-center justify-center py-4 text-red-500 border border-red-500 rounded-lg w-full"
         >
           <p>
-            Incompatible Firmware Version<br>
+            Incompatible Firmware Version<br />
             Please update NGEN to Firmware v{{ minFirmwareVersion }}
           </p>
           <Button
@@ -986,8 +978,6 @@ const sendCommand = async (cmd: string) => {
             />
           </div>
           <ScrollPanel class="w-full h-[400px]">
-            <!-- <p> -->
-
             <div v-show="state.infoSpinner" class="flex justify-center mt-8">
               <ProgressSpinner
                 style="width: 50px; height: 50px"
@@ -999,8 +989,7 @@ const sendCommand = async (cmd: string) => {
 
             <pre
               class="p-4 rounded-md min-h-[200px] text-white/60 font-mono text-sm"
-            >{{ state.memoryInfo }}</pre>
-            <!-- </p> -->
+              >{{ state.memoryInfo }}</pre>
           </ScrollPanel>
         </div>
       </div>
@@ -1124,12 +1113,7 @@ const sendCommand = async (cmd: string) => {
     <div
       class="text-center text-surface-500 text-white/50 font-mono font-thin text-sm dark:text-surface-400 block mb-8"
     >
-      <!-- <div class="mb-6">The file is being downloaded...</div> -->
-      <ProgressBar
-        class="mt-4"
-        mode="indeterminate"
-        style="height: 6px"
-      />
+      <ProgressBar class="mt-4" mode="indeterminate" style="height: 6px" />
     </div>
   </Dialog>
 
@@ -1142,11 +1126,7 @@ const sendCommand = async (cmd: string) => {
     <div
       class="text-center text-surface-500 text-white/50 font-mono font-thin text-sm dark:text-surface-400 block mb-8"
     >
-      <ProgressBar
-        class="mt-4"
-        mode="indeterminate"
-        style="height: 6px"
-      />
+      <ProgressBar class="mt-4" mode="indeterminate" style="height: 6px" />
     </div>
   </Dialog>
 </template>
