@@ -1,0 +1,15 @@
+{
+  "name": "nsl_wasm",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "nsl_wasm_bg.wasm",
+    "nsl_wasm.js",
+    "nsl_wasm.d.ts"
+  ],
+  "main": "nsl_wasm.js",
+  "types": "nsl_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
